@@ -2,6 +2,8 @@ import { StyleSheet, Text, View, TouchableOpacity } from "react-native";
 import { useEffect, useState } from "react";
 import { API_BASE_URL } from "@/constants/api";
 import { useUserId } from "@/hooks/useUserId";
+import { Colors, Spacing, FontSize } from "@/constants/theme";
+
 
 export default function HomeScreen() {
   const userId = useUserId();
@@ -86,34 +88,35 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F7F8FA",
+    backgroundColor: Colors.background,
     alignItems: "center",
     justifyContent: "center",
-    padding: 20,
+    padding: Spacing.lg,
   },
   title: {
-    fontSize: 32,
+    fontSize: FontSize.xxl,
     fontWeight: "600",
-    marginBottom: 40,
+    marginBottom: Spacing.xl,
+    color: Colors.textPrimary,
   },
   button: {
-    backgroundColor: "#4CAF50",
-    paddingVertical: 20,
-    paddingHorizontal: 40,
-    borderRadius: 50,
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.xl,
+    borderRadius: 999,
   },
   buttonDisabled: {
-    backgroundColor: "#A5D6A7",
+    opacity: 0.6,
   },
   buttonText: {
-    fontSize: 18,
+    fontSize: FontSize.lg,
     color: "#fff",
-    fontWeight: "500",
+    fontWeight: "600",
   },
   subtitle: {
-    marginTop: 30,
-    fontSize: 16,
-    color: "#555",
+    marginTop: Spacing.lg,
+    fontSize: FontSize.md,
+    color: Colors.textSecondary,
     textAlign: "center",
   },
 });

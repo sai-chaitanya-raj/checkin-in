@@ -9,12 +9,15 @@ import {
 import { useEffect, useState } from "react";
 import { API_BASE_URL } from "@/constants/api";
 import { useUserId } from "@/hooks/useUserId";
+import { Colors, Spacing, FontSize } from "@/constants/theme";
+
 
 export default function CircleScreen() {
   const userId = useUserId();
   const [circle, setCircle] = useState<string[]>([]);
   const [inputUserId, setInputUserId] = useState("");
   const [loading, setLoading] = useState(true);
+  
 
   const loadCircle = async () => {
     if (!userId) return;
@@ -97,44 +100,49 @@ export default function CircleScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F7F8FA",
-    padding: 20,
+    backgroundColor: Colors.background,
+    padding: Spacing.lg,
   },
   title: {
-    fontSize: 28,
+    fontSize: FontSize.xl,
     fontWeight: "600",
-    marginBottom: 20,
+    marginBottom: Spacing.lg,
+    color: Colors.textPrimary,
   },
   addRow: {
     flexDirection: "row",
-    marginBottom: 20,
+    marginBottom: Spacing.lg,
   },
   input: {
     flex: 1,
-    backgroundColor: "#fff",
-    padding: 12,
-    borderRadius: 8,
-    marginRight: 10,
+    backgroundColor: Colors.card,
+    padding: Spacing.md,
+    borderRadius: 12,
+    marginRight: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   addButton: {
-    backgroundColor: "#4CAF50",
-    paddingHorizontal: 20,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.lg,
     justifyContent: "center",
-    borderRadius: 8,
+    borderRadius: 12,
   },
   addText: {
     color: "#fff",
     fontWeight: "600",
   },
   item: {
-    padding: 15,
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    marginBottom: 10,
+    padding: Spacing.md,
+    backgroundColor: Colors.card,
+    borderRadius: 12,
+    marginBottom: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   empty: {
-    color: "#666",
-    marginTop: 20,
+    color: Colors.textSecondary,
+    marginTop: Spacing.lg,
     textAlign: "center",
   },
 });

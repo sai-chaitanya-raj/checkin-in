@@ -2,6 +2,8 @@ import { StyleSheet, Text, View, FlatList } from "react-native";
 import { useEffect, useState } from "react";
 import { API_BASE_URL } from "@/constants/api";
 import { useUserId } from "@/hooks/useUserId";
+import { Colors, Spacing, FontSize } from "@/constants/theme";
+
 
 export default function HistoryScreen() {
   const userId = useUserId();
@@ -67,27 +69,31 @@ export default function HistoryScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F7F8FA",
-    padding: 20,
+    backgroundColor: Colors.background,
+    padding: Spacing.lg,
   },
   title: {
-    fontSize: 24,
+    fontSize: FontSize.xl,
     fontWeight: "600",
-    marginBottom: 20,
+    marginBottom: Spacing.lg,
+    color: Colors.textPrimary,
   },
   item: {
-    padding: 15,
-    borderRadius: 10,
-    backgroundColor: "#fff",
-    marginBottom: 10,
+    padding: Spacing.md,
+    borderRadius: 12,
+    backgroundColor: Colors.card,
+    marginBottom: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   date: {
-    fontSize: 16,
+    fontSize: FontSize.md,
+    color: Colors.textPrimary,
   },
   empty: {
-    fontSize: 16,
-    color: "#666",
+    fontSize: FontSize.md,
+    color: Colors.textSecondary,
     textAlign: "center",
-    marginTop: 50,
+    marginTop: Spacing.xl,
   },
 });

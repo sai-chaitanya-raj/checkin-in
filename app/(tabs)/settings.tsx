@@ -2,6 +2,8 @@ import { StyleSheet, Text, View, Switch, TouchableOpacity } from "react-native";
 import { useEffect, useState } from "react";
 import { API_BASE_URL } from "@/constants/api";
 import { useUserId } from "@/hooks/useUserId";
+import { Colors, Spacing, FontSize } from "@/constants/theme";
+
 
 type Settings = {
   reminderEnabled: boolean;
@@ -106,35 +108,38 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F7F8FA",
-    padding: 20,
+    backgroundColor: Colors.background,
+    padding: Spacing.lg,
   },
   title: {
-    fontSize: 28,
+    fontSize: FontSize.xl,
     fontWeight: "600",
-    marginBottom: 30,
+    marginBottom: Spacing.xl,
+    color: Colors.textPrimary,
   },
   row: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 30,
+    marginBottom: Spacing.xl,
   },
   label: {
-    fontSize: 16,
-    fontWeight: "500",
+    fontSize: FontSize.md,
+    color: Colors.textPrimary,
   },
   section: {
-    marginTop: 20,
+    marginTop: Spacing.lg,
   },
   option: {
-    padding: 15,
-    borderRadius: 10,
-    backgroundColor: "#fff",
-    marginTop: 10,
+    padding: Spacing.md,
+    borderRadius: 12,
+    backgroundColor: Colors.card,
+    marginTop: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   optionActive: {
+    borderColor: Colors.primary,
     borderWidth: 2,
-    borderColor: "#4CAF50",
   },
 });
