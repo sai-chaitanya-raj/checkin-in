@@ -1,98 +1,98 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
-
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import { StyleSheet, Text, View, TouchableOpacity } from "react-native";
+import { useEffect, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const [checkedIn, setCheckedIn] = useState(false);
+  const [today, setToday] = useState("");
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  // Get today's date (YYYY-MM-DD)
+  const getTodayDate = () => {
+    return new Date().toISOString().split("T")[0];
+  };
+
+  // Load saved check-in on app start
+  useEffect(() => {
+    const loadCheckIn = async () => {
+      const savedDate = await AsyncStorage.getItem("lastCheckInDate");
+      const currentDate = getTodayDate();
+
+      setToday(currentDate);
+
+      if (savedDate === currentDate) {
+        setCheckedIn(true);
+      } else {
+        setCheckedIn(false);
+      }
+    };
+
+    loadCheckIn();
+  }, []);
+
+  // Handle check-in
+  const handleCheckIn = async () => {
+    const currentDate = getTodayDate();
+    await AsyncStorage.setItem("lastCheckInDate", currentDate);
+    setCheckedIn(true);
+  };
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.title}>Checkin’in</Text>
+
+      <TouchableOpacity
+        style={[
+          styles.button,
+          checkedIn ? styles.buttonDisabled : null,
+        ]}
+        onPress={handleCheckIn}
+        disabled={checkedIn}
+      >
+        <Text style={styles.buttonText}>
+          {checkedIn ? "Checked in for today ✅" : "I’m here"}
+        </Text>
+      </TouchableOpacity>
+
+      <Text style={styles.subtitle}>
+        {checkedIn
+          ? `Checked in on ${today}`
+          : "Tap once a day. No pressure."}
+      </Text>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: {
+    flex: 1,
+    backgroundColor: "#F7F8FA",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  title: {
+    fontSize: 32,
+    fontWeight: "600",
+    marginBottom: 40,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  button: {
+    backgroundColor: "#4CAF50",
+    paddingVertical: 20,
+    paddingHorizontal: 40,
+    borderRadius: 50,
+  },
+  buttonDisabled: {
+    backgroundColor: "#A5D6A7",
+  },
+  buttonText: {
+    fontSize: 18,
+    color: "#fff",
+    fontWeight: "500",
+  },
+  subtitle: {
+    marginTop: 30,
+    fontSize: 16,
+    color: "#555",
+    textAlign: "center",
   },
 });
