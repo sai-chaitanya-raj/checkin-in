@@ -1,10 +1,10 @@
 import { StyleSheet, Text, View, TouchableOpacity } from "react-native";
 import { useEffect, useState } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-
-const HISTORY_KEY = "checkInHistory";
+import { API_BASE_URL } from "@/constants/api";
+import { useUserId } from "@/hooks/useUserId";
 
 export default function HomeScreen() {
+  const userId = useUserId();
   const [checkedIn, setCheckedIn] = useState(false);
   const [today, setToday] = useState("");
 
@@ -13,34 +13,49 @@ export default function HomeScreen() {
   };
 
   useEffect(() => {
-    const loadCheckIn = async () => {
+    if (!userId) return;
+
+    const loadStatus = async () => {
       const currentDate = getTodayDate();
       setToday(currentDate);
 
-      const historyRaw = await AsyncStorage.getItem(HISTORY_KEY);
-      const history: string[] = historyRaw ? JSON.parse(historyRaw) : [];
+      const res = await fetch(
+        `${API_BASE_URL}/history?userId=${userId}`
+      );
+      const json = await res.json();
 
-      if (history.includes(currentDate)) {
+      if (json.data?.includes(currentDate)) {
         setCheckedIn(true);
       }
     };
 
-    loadCheckIn();
-  }, []);
+    loadStatus();
+  }, [userId]);
 
   const handleCheckIn = async () => {
+    if (!userId) return;
+
     const currentDate = getTodayDate();
 
-    const historyRaw = await AsyncStorage.getItem(HISTORY_KEY);
-    const history: string[] = historyRaw ? JSON.parse(historyRaw) : [];
-
-    if (!history.includes(currentDate)) {
-      history.push(currentDate);
-      await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(history));
-    }
+    await fetch(`${API_BASE_URL}/checkin`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId,
+        date: currentDate,
+      }),
+    });
 
     setCheckedIn(true);
   };
+
+  if (!userId) {
+    return (
+      <View style={styles.container}>
+        <Text>Loading...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>

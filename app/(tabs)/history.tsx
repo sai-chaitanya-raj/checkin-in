@@ -1,32 +1,48 @@
 import { StyleSheet, Text, View, FlatList } from "react-native";
 import { useEffect, useState } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-
-const HISTORY_KEY = "checkInHistory";
+import { API_BASE_URL } from "@/constants/api";
+import { useUserId } from "@/hooks/useUserId";
 
 export default function HistoryScreen() {
+  const userId = useUserId();
   const [history, setHistory] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadHistory = async () => {
-      const historyRaw = await AsyncStorage.getItem(HISTORY_KEY);
-      const parsedHistory: string[] = historyRaw
-        ? JSON.parse(historyRaw)
-        : [];
+    if (!userId) return;
 
-      // Show latest first
-      setHistory(parsedHistory.reverse());
+    const loadHistory = async () => {
+      try {
+        const res = await fetch(
+          `${API_BASE_URL}/history?userId=${userId}`
+        );
+        const json = await res.json();
+
+        if (json.success) {
+          setHistory([...json.data].reverse());
+        }
+      } catch (error) {
+        console.log("History fetch error:", error);
+      } finally {
+        setLoading(false);
+      }
     };
 
     loadHistory();
-  }, []);
+  }, [userId]);
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <Text>Loading history...</Text>
+      </View>
+    );
+  }
 
   if (history.length === 0) {
     return (
       <View style={styles.container}>
-        <Text style={styles.empty}>
-          No check-ins yet.
-        </Text>
+        <Text style={styles.empty}>No check-ins yet.</Text>
       </View>
     );
   }

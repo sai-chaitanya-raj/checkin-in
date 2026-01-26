@@ -11,18 +11,10 @@ export default function TabLayout() {
 
   return (
     <Tabs>
-  <Tabs.Screen
-    name="index"
-    options={{ title: "Check-In" }}
-  />
-  <Tabs.Screen
-    name="history"
-    options={{ title: "History" }}
-  />
-  <Tabs.Screen
-    name="settings"
-    options={{ title: "Settings" }}
-  />
+  <Tabs.Screen name="index" options={{ title: "Check-In" }} />
+  <Tabs.Screen name="history" options={{ title: "History" }} />
+  <Tabs.Screen name="circle" options={{ title: "Circle" }} />
+  <Tabs.Screen name="settings" options={{ title: "Settings" }} />
 </Tabs>
 
   );
