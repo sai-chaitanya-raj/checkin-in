@@ -2,37 +2,43 @@ import { StyleSheet, Text, View, TouchableOpacity } from "react-native";
 import { useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+const HISTORY_KEY = "checkInHistory";
+
 export default function HomeScreen() {
   const [checkedIn, setCheckedIn] = useState(false);
   const [today, setToday] = useState("");
 
-  // Get today's date (YYYY-MM-DD)
   const getTodayDate = () => {
     return new Date().toISOString().split("T")[0];
   };
 
-  // Load saved check-in on app start
   useEffect(() => {
     const loadCheckIn = async () => {
-      const savedDate = await AsyncStorage.getItem("lastCheckInDate");
       const currentDate = getTodayDate();
-
       setToday(currentDate);
 
-      if (savedDate === currentDate) {
+      const historyRaw = await AsyncStorage.getItem(HISTORY_KEY);
+      const history: string[] = historyRaw ? JSON.parse(historyRaw) : [];
+
+      if (history.includes(currentDate)) {
         setCheckedIn(true);
-      } else {
-        setCheckedIn(false);
       }
     };
 
     loadCheckIn();
   }, []);
 
-  // Handle check-in
   const handleCheckIn = async () => {
     const currentDate = getTodayDate();
-    await AsyncStorage.setItem("lastCheckInDate", currentDate);
+
+    const historyRaw = await AsyncStorage.getItem(HISTORY_KEY);
+    const history: string[] = historyRaw ? JSON.parse(historyRaw) : [];
+
+    if (!history.includes(currentDate)) {
+      history.push(currentDate);
+      await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+    }
+
     setCheckedIn(true);
   };
 
