@@ -16,7 +16,7 @@ export const useUserId = () => {
         if (userStr) {
           try {
             const user = JSON.parse(userStr);
-            storedUserId = user.id || user._id || user.googleId;
+            storedUserId = user.userId || user.id || user._id || user.googleId;
             if (storedUserId) {
               await AsyncStorage.setItem(USER_ID_KEY, storedUserId);
             }

@@ -36,8 +36,11 @@ export default function RootLayout() {
           SplashScreen.hideAsync();
         }, 100);
       } else {
-        // User not logged in, wait for them to navigate (default flow)
-        SplashScreen.hideAsync();
+        // User not logged in, redirect to auth
+        setTimeout(() => {
+          router.replace("/auth");
+          SplashScreen.hideAsync();
+        }, 100);
       }
     } catch (e) {
       console.error("Auth check failed", e);

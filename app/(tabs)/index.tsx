@@ -82,7 +82,10 @@ export default function HomeScreen() {
   };
 
   const handleCheckIn = async () => {
-    if (!userId) return;
+    if (!userId) {
+      Alert.alert("Error", "User ID not found. Please try logging in again.");
+      return;
+    }
     if (!selectedMood) {
       Alert.alert("Mood Needed", "How are you feeling today?");
       return;
