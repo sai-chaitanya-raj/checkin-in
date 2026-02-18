@@ -1,24 +1,67 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
+import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Stack, useRouter, Slot } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
+import { useEffect, useState } from "react";
+import "react-native-reanimated";
 
-export const unstable_settings = {
-  anchor: '(tabs)',
-};
+import { ThemeProvider as CustomThemeProvider } from "@/context/ThemeContext";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { ActivityIndicator, View } from "react-native";
+
+// Prevent the splash screen from auto-hiding before asset loading is complete.
+SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
+  const loaded = true;
+  const [isReady, setIsReady] = useState(false);
+  const router = useRouter();
+
+  useEffect(() => {
+    if (loaded) {
+      checkAuth();
+    }
+  }, [loaded]);
+
+  const checkAuth = async () => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+      const user = await AsyncStorage.getItem("user");
+
+      if (token && user) {
+        // User is logged in, redirect to tabs
+        // We use router.replace inside a timeout to ensure navigation is ready
+        setTimeout(() => {
+          router.replace("/(tabs)");
+          SplashScreen.hideAsync();
+        }, 100);
+      } else {
+        // User not logged in, wait for them to navigate (default flow)
+        SplashScreen.hideAsync();
+      }
+    } catch (e) {
+      console.error("Auth check failed", e);
+      SplashScreen.hideAsync();
+    } finally {
+      setIsReady(true);
+    }
+  };
+
+  if (!loaded || !isReady) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <CustomThemeProvider>
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+        <Stack.Screen name="auth/index" options={{ headerShown: false }} />
+        <Stack.Screen name="+not-found" />
       </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    </CustomThemeProvider>
   );
 }
