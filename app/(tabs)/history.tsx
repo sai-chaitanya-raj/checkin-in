@@ -1,46 +1,86 @@
 import { StyleSheet, Text, View, FlatList, ActivityIndicator } from "react-native";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
+import { useFocusEffect } from "@react-navigation/native";
 import { API_BASE_URL } from "@/constants/api";
 import { useUserId } from "@/hooks/useUserId";
-import { Colors, Spacing, FontSize, BorderRadius, Shadows } from "@/constants/theme";
+import { Spacing, FontSize, BorderRadius, Shadows } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useTheme } from "@/context/ThemeContext";
+
+type CheckIn = {
+  date: string;
+  mood: string;
+  timestamp: string;
+  _id?: string;
+};
 
 export default function HistoryScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const userId = useUserId();
-  const [history, setHistory] = useState<string[]>([]);
+  const [history, setHistory] = useState<(string | CheckIn)[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (!userId) return;
+  useFocusEffect(
+    useCallback(() => {
+      if (!userId) return;
 
-    const loadHistory = async () => {
-      try {
-        const res = await fetch(
-          `${API_BASE_URL}/history?userId=${userId}`
-        );
-        const json = await res.json();
+      const loadHistory = async () => {
+        try {
+          const res = await fetch(
+            `${API_BASE_URL}/history?userId=${userId}`
+          );
+          const json = await res.json();
 
-        if (json.success) {
-          setHistory([...json.data].reverse());
+          if (json.success) {
+            setHistory([...json.data].reverse());
+          }
+        } catch (error) {
+          console.log("History fetch error:", error);
+        } finally {
+          setLoading(false);
         }
-      } catch (error) {
-        console.log("History fetch error:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+      };
 
-    loadHistory();
-  }, [userId]);
+      loadHistory();
+    }, [userId])
+  );
 
   if (loading) {
     return (
       <View style={[styles.container, styles.center]}>
-        <ActivityIndicator size="large" color={Colors.primary} />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
+
+  const renderItem = ({ item, index }: { item: string | CheckIn, index: number }) => {
+    const isObject = typeof item === 'object';
+    const date = isObject ? item.date : item;
+    const mood = isObject ? item.mood : null;
+
+    return (
+      <View style={styles.timelineItem}>
+        <View style={styles.timelineLeft}>
+          <View style={styles.timelineDot} />
+          {index !== history.length - 1 && <View style={styles.timelineLine} />}
+        </View>
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="checkmark-circle" size={20} color={colors.success} style={{ marginRight: Spacing.sm }} />
+            <Text style={styles.cardTitle}>Checked In</Text>
+            {mood && (
+              <View style={[styles.moodBadge, { backgroundColor: colors.background }]}>
+                <Text style={{ fontSize: 12 }}>{mood === 'great' ? '😊' : mood === 'okay' ? '😐' : '😞'}</Text>
+              </View>
+            )}
+          </View>
+          <Text style={styles.date}>{new Date(date).toDateString()}</Text>
+        </View>
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -51,39 +91,25 @@ export default function HistoryScreen() {
 
       <FlatList
         data={history}
-        keyExtractor={(item) => item}
+        keyExtractor={(item, index) => typeof item === 'object' ? (item._id || index.toString()) : item}
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Ionicons name="calendar-outline" size={64} color={Colors.textSecondary} style={{ opacity: 0.5 }} />
+            <Ionicons name="calendar-outline" size={64} color={colors.textSecondary} style={{ opacity: 0.5 }} />
             <Text style={styles.emptyText}>No check-ins yet.</Text>
             <Text style={styles.emptySubText}>Check-in today to start your streak!</Text>
           </View>
         }
-        renderItem={({ item, index }) => (
-          <View style={styles.timelineItem}>
-            <View style={styles.timelineLeft}>
-              <View style={styles.timelineDot} />
-              {index !== history.length - 1 && <View style={styles.timelineLine} />}
-            </View>
-            <View style={styles.card}>
-              <View style={styles.cardHeader}>
-                <Ionicons name="checkmark-circle" size={20} color={Colors.success} style={{ marginRight: Spacing.sm }} />
-                <Text style={styles.cardTitle}>Checked In</Text>
-              </View>
-              <Text style={styles.date}>{item}</Text>
-            </View>
-          </View>
-        )}
+        renderItem={renderItem}
       />
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
   },
   center: {
     justifyContent: "center",
@@ -96,11 +122,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: FontSize.xxl,
     fontWeight: "800",
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
   },
   subtitle: {
     fontSize: FontSize.md,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     marginTop: Spacing.xs,
   },
   listContent: {
@@ -119,18 +145,18 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     marginTop: 6,
   },
   timelineLine: {
     flex: 1,
     width: 2,
-    backgroundColor: Colors.border,
+    backgroundColor: colors.border,
     marginTop: 4,
   },
   card: {
     flex: 1,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     padding: Spacing.md,
     borderRadius: BorderRadius.lg,
     ...Shadows.small,
@@ -140,14 +166,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: Spacing.xs,
   },
+  moodBadge: {
+    marginLeft: 'auto',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+  },
   cardTitle: {
     fontSize: FontSize.md,
     fontWeight: "600",
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
   },
   date: {
     fontSize: FontSize.sm,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     marginLeft: 28, // Align with title text
   },
   emptyContainer: {
@@ -157,13 +189,13 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: FontSize.lg,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     marginTop: Spacing.md,
     fontWeight: "500",
   },
   emptySubText: {
     fontSize: FontSize.sm,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     marginTop: Spacing.xs,
   },
 });

@@ -1,16 +1,38 @@
 export const Colors = {
-  background: "#F2F4F8", // Slightly cooler grey for a modern feel
-  primary: "#6C63FF", // Modern violet/indigo
-  primaryDark: "#5A52D5",
-  secondary: "#03DAC6",
-  textPrimary: "#1A1A1A",
-  textSecondary: "#64748B",
-  card: "#FFFFFF",
-  border: "#E2E8F0",
-  error: "#FF5252",
-  success: "#4CAF50",
-  warning: "#FFC107",
-  surface: "#FFFFFF",
+  light: {
+    background: "#F2F4F8",
+    primary: "#6C63FF",
+    primaryDark: "#5A52D5",
+    secondary: "#03DAC6",
+    textPrimary: "#1A1A1A",
+    textSecondary: "#64748B",
+    card: "#FFFFFF",
+    border: "#E2E8F0",
+    error: "#FF5252",
+    success: "#4CAF50",
+    warning: "#FFC107",
+    surface: "#FFFFFF",
+    tint: "#6C63FF",
+    tabIconDefault: "#64748B",
+    tabIconSelected: "#6C63FF",
+  },
+  dark: {
+    background: "#121212",
+    primary: "#817AFF", // Slightly lighter for dark mode
+    primaryDark: "#5A52D5",
+    secondary: "#03DAC6",
+    textPrimary: "#FFFFFF",
+    textSecondary: "#A0A0A0",
+    card: "#1E1E1E",
+    border: "#2C2C2C",
+    error: "#CF6679",
+    success: "#81C784",
+    warning: "#FFD54F",
+    surface: "#1E1E1E",
+    tint: "#817AFF",
+    tabIconDefault: "#A0A0A0",
+    tabIconSelected: "#817AFF",
+  },
 };
 
 export const Spacing = {

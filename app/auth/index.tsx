@@ -1,13 +1,14 @@
 import { API_BASE_URL } from "@/constants/api";
-import { Colors, Spacing, FontSize, BorderRadius, Shadows } from "@/constants/theme";
+import { Spacing, FontSize, BorderRadius, Shadows } from "@/constants/theme";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { makeRedirectUri, Prompt } from "expo-auth-session";
 import * as Google from "expo-auth-session/providers/google";
 import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { StyleSheet, Text, TouchableOpacity, View, ActivityIndicator, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "@/context/ThemeContext";
 
 // import { Utils } from "expo-router";
 import { Platform } from "react-native";
@@ -33,12 +34,14 @@ const finalRedirectUri = Platform.select({
 
 export default function AuthScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [loading, setLoading] = useState(false);
 
   const [request, response, promptAsync] = Google.useAuthRequest({
-    androidClientId: "576137633786-8d6931753177817088927055708579-373322198.apps.googleusercontent.com",
+    androidClientId: "728497750384-i2odpp36reh028ts0kqijh1bp3bmisim.apps.googleusercontent.com",
     iosClientId: "YOUR_IOS_CLIENT_ID",
-    webClientId: "576137633786-k873177699106093174229988118.apps.googleusercontent.com",
+    webClientId: "728497750384-78jtkoio2td111a4i2pgfuith4hnnd1j.apps.googleusercontent.com",
     redirectUri: makeRedirectUri({
       scheme: "checkinin"
     }),
@@ -90,7 +93,7 @@ export default function AuthScreen() {
     <View style={styles.container}>
       <View style={styles.content}>
         <View style={styles.iconContainer}>
-          <Ionicons name="location" size={64} color={Colors.primary} />
+          <Ionicons name="location" size={64} color={colors.primary} />
         </View>
 
         <Text style={styles.title}>Checkin’in</Text>
@@ -98,7 +101,7 @@ export default function AuthScreen() {
 
         <View style={styles.buttonContainer}>
           {loading ? (
-            <ActivityIndicator size="large" color={Colors.primary} />
+            <ActivityIndicator size="large" color={colors.primary} />
           ) : (
             <>
               <TouchableOpacity
@@ -137,10 +140,10 @@ export default function AuthScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
   },
   content: {
     flex: 1,
@@ -151,19 +154,19 @@ const styles = StyleSheet.create({
   iconContainer: {
     marginBottom: Spacing.lg,
     padding: Spacing.lg,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: BorderRadius.round,
     ...Shadows.medium,
   },
   title: {
     fontSize: 32,
     fontWeight: "bold",
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     marginBottom: Spacing.xs,
   },
   subtitle: {
     fontSize: FontSize.md,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     textAlign: "center",
     marginBottom: Spacing.xxl,
   },
@@ -198,15 +201,15 @@ const styles = StyleSheet.create({
   line: {
     flex: 1,
     height: 1,
-    backgroundColor: Colors.border,
+    backgroundColor: colors.border,
   },
   orText: {
     marginHorizontal: Spacing.md,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontSize: FontSize.sm,
   },
   emailButton: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.lg,
     alignItems: "center",
@@ -225,10 +228,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     width: "100%",
     borderWidth: 1,
-    borderColor: Colors.primary,
+    borderColor: colors.primary,
   },
   signupButtonText: {
-    color: Colors.primary,
+    color: colors.primary,
     fontSize: FontSize.md,
     fontWeight: "600",
   },

@@ -8,14 +8,16 @@ import {
   ActivityIndicator,
   Alert,
   Clipboard,
+  Modal,
 } from "react-native";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { API_BASE_URL } from "@/constants/api";
-import { Colors, Spacing, FontSize, BorderRadius, Shadows } from "@/constants/theme";
+import { Spacing, FontSize, BorderRadius, Shadows } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useTheme } from "@/context/ThemeContext";
 
 type Friend = {
   userId: string;
@@ -35,6 +37,8 @@ type Request = {
 };
 
 export default function CircleScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [activeTab, setActiveTab] = useState<'friends' | 'requests'>('friends');
   const [myPublicId, setMyPublicId] = useState<string>("");
   const [friends, setFriends] = useState<Friend[]>([]);
@@ -43,6 +47,8 @@ export default function CircleScreen() {
   const [inputPublicId, setInputPublicId] = useState("");
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
+  const [selectedFriend, setSelectedFriend] = useState<Friend | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
 
   const fetchFriendsData = useCallback(async () => {
     try {
@@ -125,13 +131,57 @@ export default function CircleScreen() {
     }
   };
 
+  const handleRemoveFriend = async () => {
+    if (!selectedFriend) return;
+
+    Alert.alert(
+      "Remove Friend",
+      `Are you sure you want to remove ${selectedFriend.email?.split('@')[0]}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const token = await AsyncStorage.getItem("token");
+              const res = await fetch(`${API_BASE_URL}/friends/remove`, {
+                method: "DELETE",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${token}`
+                },
+                body: JSON.stringify({ friendId: selectedFriend.userId }),
+              });
+              const json = await res.json();
+              if (json.success) {
+                setModalVisible(false);
+                setSelectedFriend(null);
+                fetchFriendsData(); // Refresh list
+              } else {
+                Alert.alert("Error", json.message || "Failed to remove friend");
+              }
+            } catch (error) {
+              Alert.alert("Error", "Network error");
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const openFriendModal = (friend: Friend) => {
+    setSelectedFriend(friend);
+    setModalVisible(true);
+  };
+
   const copyToClipboard = () => {
     Clipboard.setString(myPublicId);
     Alert.alert("Copied", "Your ID has been copied to clipboard.");
   };
 
   const renderFriend = ({ item }: { item: Friend }) => (
-    <View style={styles.card}>
+    <TouchableOpacity onPress={() => openFriendModal(item)} style={styles.card}>
       <View style={styles.userInfo}>
         <View style={styles.avatarPlaceholder}>
           <Text style={styles.avatarText}>{item.email ? item.email[0].toUpperCase() : "?"}</Text>
@@ -147,9 +197,9 @@ export default function CircleScreen() {
           <Text style={styles.moodDate}>{new Date(item.lastCheckIn.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
         </View>
       ) : (
-        <Text style={styles.moodDate}>No recent check-in</Text>
+        <Text style={styles.moodDate}>No recent check-in visible</Text>
       )}
-    </View>
+    </TouchableOpacity>
   );
 
   const renderRequest = ({ item }: { item: Request }) => (
@@ -177,7 +227,7 @@ export default function CircleScreen() {
   if (loading) {
     return (
       <View style={[styles.container, styles.center]}>
-        <ActivityIndicator size="large" color={Colors.primary} />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -190,7 +240,7 @@ export default function CircleScreen() {
           <Text style={styles.idLabel}>My ID:</Text>
           <TouchableOpacity style={styles.idBox} onPress={copyToClipboard}>
             <Text style={styles.idText}>{myPublicId || "Loading..."}</Text>
-            <Ionicons name="copy-outline" size={16} color={Colors.primary} />
+            <Ionicons name="copy-outline" size={16} color={colors.primary} />
           </TouchableOpacity>
         </View>
       </View>
@@ -223,7 +273,7 @@ export default function CircleScreen() {
                   placeholder="Enter Public ID (e.g. CIN_XXXXXX)"
                   value={inputPublicId}
                   onChangeText={setInputPublicId}
-                  placeholderTextColor={Colors.textSecondary}
+                  placeholderTextColor={colors.textSecondary}
                   autoCapitalize="characters"
                 />
                 <TouchableOpacity style={styles.addButton} onPress={handleSendRequest} disabled={searching}>
@@ -233,7 +283,7 @@ export default function CircleScreen() {
             </View>
 
             {loading ? (
-              <ActivityIndicator style={{ marginTop: 20 }} color={Colors.primary} />
+              <ActivityIndicator style={{ marginTop: 20 }} color={colors.primary} />
             ) : (
               <FlatList
                 data={friends}
@@ -254,14 +304,59 @@ export default function CircleScreen() {
           />
         )}
       </View>
+
+      {/* Friend Detail Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Friend Options</Text>
+              <TouchableOpacity onPress={() => setModalVisible(false)}>
+                <Ionicons name="close" size={24} color={colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            {selectedFriend && (
+              <View style={styles.friendProfile}>
+                <View style={[styles.avatarPlaceholder, { width: 80, height: 80, borderRadius: 40, alignSelf: 'center', marginBottom: 16 }]}>
+                  <Text style={{ fontSize: 32, fontWeight: 'bold', color: '#fff' }}>
+                    {selectedFriend.email ? selectedFriend.email[0].toUpperCase() : "?"}
+                  </Text>
+                </View>
+                <Text style={[styles.userName, { alignSelf: 'center', fontSize: 20 }]}>
+                  {selectedFriend.email?.split('@')[0]}
+                </Text>
+                <Text style={[styles.userEmail, { alignSelf: 'center', marginBottom: 20 }]}>
+                  ID: {selectedFriend.publicId}
+                </Text>
+
+                <View style={styles.modalActions}>
+                  <TouchableOpacity style={[styles.modalBtn, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }]} onPress={() => setModalVisible(false)}>
+                    <Text style={[styles.modalBtnText, { color: colors.textPrimary }]}>View Profile</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={[styles.modalBtn, { backgroundColor: colors.error }]} onPress={handleRemoveFriend}>
+                    <Text style={[styles.modalBtnText, { color: '#fff' }]}>Remove Friend</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
   },
   center: {
     justifyContent: "center",
@@ -269,7 +364,7 @@ const styles = StyleSheet.create({
   },
   header: {
     padding: Spacing.lg,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderBottomLeftRadius: BorderRadius.xl,
     borderBottomRightRadius: BorderRadius.xl,
     ...Shadows.small,
@@ -277,22 +372,40 @@ const styles = StyleSheet.create({
   title: {
     fontSize: FontSize.xxl,
     fontWeight: "800",
-    color: Colors.textPrimary,
-    height: 50,
-    backgroundColor: Colors.primary,
-    borderRadius: BorderRadius.lg,
-    justifyContent: "center",
-    alignItems: "center",
-    marginLeft: Spacing.md,
-    ...Shadows.small,
+    color: colors.textPrimary,
+    marginBottom: Spacing.sm,
   },
-  disabledButton: {
-    backgroundColor: Colors.border,
+  idContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: Spacing.xs,
+  },
+  idLabel: {
+    fontSize: FontSize.sm,
+    color: colors.textSecondary,
+    marginRight: Spacing.sm,
+  },
+  idBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.background,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.md,
+    borderColor: colors.border,
+    borderWidth: 1,
+  },
+  idText: {
+    fontSize: FontSize.sm,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginRight: Spacing.xs,
   },
   tabs: {
     flexDirection: 'row',
     paddingHorizontal: Spacing.lg,
     marginBottom: Spacing.md,
+    marginTop: Spacing.md,
   },
   tab: {
     paddingVertical: Spacing.sm,
@@ -302,89 +415,170 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   activeTab: {
-    backgroundColor: Colors.primary + '20', // 20% opacity
+    backgroundColor: colors.primary + '20', // 20% opacity
   },
   tabText: {
     fontSize: FontSize.md,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontWeight: '600',
   },
   activeTabText: {
-    color: Colors.primary,
+    color: colors.primary,
   },
   content: {
     flex: 1,
+  },
+  searchSection: {
+    paddingHorizontal: Spacing.lg,
+    marginBottom: Spacing.lg,
+  },
+  sectionTitle: {
+    fontSize: FontSize.lg,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    marginBottom: Spacing.sm,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  input: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    color: colors.textPrimary,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginRight: Spacing.sm,
+  },
+  addButton: {
+    backgroundColor: colors.primary,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   listContent: {
     padding: Spacing.lg,
     paddingTop: 0,
   },
-  item: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.surface,
+  card: {
+    backgroundColor: colors.surface,
     padding: Spacing.md,
     borderRadius: BorderRadius.lg,
     marginBottom: Spacing.md,
     ...Shadows.small,
   },
-  avatar: {
+  userInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  avatarPlaceholder: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Colors.background,
+    backgroundColor: colors.primary,
     justifyContent: "center",
     alignItems: "center",
     marginRight: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
   },
   avatarText: {
     fontSize: FontSize.lg,
     fontWeight: "700",
-    color: Colors.primary,
+    color: "#fff",
   },
-  itemInfo: {
-    flex: 1,
-  },
-  itemName: {
+  userName: {
     fontSize: FontSize.md,
     fontWeight: "600",
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
   },
-  itemId: {
+  userEmail: {
     fontSize: FontSize.xs,
-    color: Colors.textSecondary,
-    marginTop: 2,
+    color: colors.textSecondary,
   },
-  itemStatus: {
-    fontSize: 10,
-    color: Colors.textSecondary,
-    marginTop: 4,
-  },
-  actions: {
+  moodContainer: {
     flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
   },
-  actionButton: {
-    padding: 8,
-    marginLeft: 8,
-    backgroundColor: Colors.background,
-    borderRadius: BorderRadius.round,
+  moodEmoji: {
+    fontSize: 20,
+    marginRight: Spacing.sm,
   },
-  emptyContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingTop: Spacing.xxl,
+  moodDate: {
+    fontSize: FontSize.sm,
+    color: colors.textSecondary,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    marginTop: Spacing.md,
+    justifyContent: 'flex-end',
+  },
+  actionBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: BorderRadius.md,
+    marginLeft: Spacing.sm,
+  },
+  acceptBtn: {
+    backgroundColor: colors.success,
+  },
+  rejectBtn: {
+    backgroundColor: colors.error,
+  },
+  actionBtnText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: FontSize.sm,
   },
   emptyText: {
+    textAlign: 'center',
+    color: colors.textSecondary,
     fontSize: FontSize.md,
-    color: Colors.textSecondary,
-    marginTop: Spacing.md,
-    fontWeight: "500",
+    marginTop: Spacing.xl,
   },
-  emptySubText: {
-    fontSize: FontSize.sm,
-    color: Colors.textSecondary,
-    marginTop: Spacing.xs,
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    paddingBottom: Spacing.xl,
+    minHeight: 300,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
+  },
+  modalTitle: {
+    fontSize: FontSize.lg,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  friendProfile: {
+    flex: 1,
+  },
+  modalActions: {
+    gap: Spacing.md,
+  },
+  modalBtn: {
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalBtnText: {
+    fontWeight: '600',
+    fontSize: FontSize.md,
   },
 });

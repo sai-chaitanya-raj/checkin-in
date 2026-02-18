@@ -1,14 +1,17 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, ActivityIndicator, Alert, ScrollView, KeyboardAvoidingView, Platform } from "react-native";
 import { useRouter } from "expo-router";
-import { Colors, Spacing, FontSize, BorderRadius, Shadows } from "@/constants/theme";
+import { Spacing, FontSize, BorderRadius, Shadows } from "@/constants/theme";
 import { API_BASE_URL } from "@/constants/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useTheme } from "@/context/ThemeContext";
 
 export default function SignupScreen() {
     const router = useRouter();
+    const { colors } = useTheme();
+    const styles = useMemo(() => createStyles(colors), [colors]);
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
         name: "",
@@ -58,7 +61,7 @@ export default function SignupScreen() {
             >
                 <ScrollView contentContainerStyle={styles.scrollContent}>
                     <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                        <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
+                        <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
                     </TouchableOpacity>
 
                     <View style={styles.header}>
@@ -74,7 +77,7 @@ export default function SignupScreen() {
                                 placeholder="John Doe"
                                 value={formData.name}
                                 onChangeText={(text) => setFormData({ ...formData, name: text })}
-                                placeholderTextColor={Colors.textSecondary}
+                                placeholderTextColor={colors.textSecondary}
                             />
                         </View>
 
@@ -86,7 +89,7 @@ export default function SignupScreen() {
                                 value={formData.age}
                                 onChangeText={(text) => setFormData({ ...formData, age: text })}
                                 keyboardType="numeric"
-                                placeholderTextColor={Colors.textSecondary}
+                                placeholderTextColor={colors.textSecondary}
                             />
                         </View>
 
@@ -99,7 +102,7 @@ export default function SignupScreen() {
                                 onChangeText={(text) => setFormData({ ...formData, email: text })}
                                 autoCapitalize="none"
                                 keyboardType="email-address"
-                                placeholderTextColor={Colors.textSecondary}
+                                placeholderTextColor={colors.textSecondary}
                             />
                         </View>
 
@@ -111,7 +114,7 @@ export default function SignupScreen() {
                                 value={formData.password}
                                 onChangeText={(text) => setFormData({ ...formData, password: text })}
                                 secureTextEntry
-                                placeholderTextColor={Colors.textSecondary}
+                                placeholderTextColor={colors.textSecondary}
                             />
                         </View>
 
@@ -136,10 +139,10 @@ export default function SignupScreen() {
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: Colors.background,
+        backgroundColor: colors.background,
     },
     scrollContent: {
         padding: Spacing.lg,
@@ -153,12 +156,12 @@ const styles = StyleSheet.create({
     title: {
         fontSize: FontSize.xxl,
         fontWeight: "800",
-        color: Colors.textPrimary,
+        color: colors.textPrimary,
         marginBottom: Spacing.xs,
     },
     subtitle: {
         fontSize: FontSize.md,
-        color: Colors.textSecondary,
+        color: colors.textSecondary,
     },
     form: {
         gap: Spacing.lg,
@@ -169,18 +172,18 @@ const styles = StyleSheet.create({
     label: {
         fontSize: FontSize.sm,
         fontWeight: "600",
-        color: Colors.textPrimary,
+        color: colors.textPrimary,
     },
     input: {
-        backgroundColor: Colors.surface,
+        backgroundColor: colors.surface,
         padding: Spacing.md,
         borderRadius: BorderRadius.lg,
         fontSize: FontSize.md,
-        color: Colors.textPrimary,
+        color: colors.textPrimary,
         ...Shadows.small,
     },
     button: {
-        backgroundColor: Colors.primary,
+        backgroundColor: colors.primary,
         padding: Spacing.md,
         borderRadius: BorderRadius.lg,
         alignItems: "center",
@@ -198,11 +201,11 @@ const styles = StyleSheet.create({
         marginTop: Spacing.md,
     },
     footerText: {
-        color: Colors.textSecondary,
+        color: colors.textSecondary,
         fontSize: FontSize.md,
     },
     link: {
-        color: Colors.primary,
+        color: colors.primary,
         fontWeight: "600",
         fontSize: FontSize.md,
     },

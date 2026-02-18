@@ -1,13 +1,16 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, ActivityIndicator, Alert, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
-import { Colors, Spacing, FontSize, BorderRadius, Shadows } from "@/constants/theme";
+import { Spacing, FontSize, BorderRadius, Shadows } from "@/constants/theme";
 import { API_BASE_URL } from "@/constants/api";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useTheme } from "@/context/ThemeContext";
 
 export default function ForgotPasswordScreen() {
     const router = useRouter();
+    const { colors } = useTheme();
+    const styles = useMemo(() => createStyles(colors), [colors]);
     const [loading, setLoading] = useState(false);
     const [email, setEmail] = useState("");
 
@@ -44,7 +47,7 @@ export default function ForgotPasswordScreen() {
         <SafeAreaView style={styles.container}>
             <ScrollView contentContainerStyle={styles.scrollContent}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                    <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
+                    <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
 
                 <View style={styles.header}>
@@ -62,7 +65,7 @@ export default function ForgotPasswordScreen() {
                             onChangeText={setEmail}
                             autoCapitalize="none"
                             keyboardType="email-address"
-                            placeholderTextColor={Colors.textSecondary}
+                            placeholderTextColor={colors.textSecondary}
                         />
                     </View>
 
@@ -79,10 +82,10 @@ export default function ForgotPasswordScreen() {
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: Colors.background,
+        backgroundColor: colors.background,
     },
     scrollContent: {
         padding: Spacing.lg,
@@ -96,12 +99,12 @@ const styles = StyleSheet.create({
     title: {
         fontSize: FontSize.xxl,
         fontWeight: "800",
-        color: Colors.textPrimary,
+        color: colors.textPrimary,
         marginBottom: Spacing.xs,
     },
     subtitle: {
         fontSize: FontSize.md,
-        color: Colors.textSecondary,
+        color: colors.textSecondary,
     },
     form: {
         gap: Spacing.lg,
@@ -112,18 +115,18 @@ const styles = StyleSheet.create({
     label: {
         fontSize: FontSize.sm,
         fontWeight: "600",
-        color: Colors.textPrimary,
+        color: colors.textPrimary,
     },
     input: {
-        backgroundColor: Colors.surface,
+        backgroundColor: colors.surface,
         padding: Spacing.md,
         borderRadius: BorderRadius.lg,
         fontSize: FontSize.md,
-        color: Colors.textPrimary,
+        color: colors.textPrimary,
         ...Shadows.small,
     },
     button: {
-        backgroundColor: Colors.primary,
+        backgroundColor: colors.primary,
         padding: Spacing.md,
         borderRadius: BorderRadius.lg,
         alignItems: "center",

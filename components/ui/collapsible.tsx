@@ -4,7 +4,7 @@ import { StyleSheet, TouchableOpacity, View } from "react-native";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { Colors } from "@/constants/theme";
+import { useTheme } from "@/context/ThemeContext";
 
 type Props = PropsWithChildren<{
   title: string;
@@ -12,6 +12,7 @@ type Props = PropsWithChildren<{
 
 export function Collapsible({ children, title }: Props) {
   const [isOpen, setIsOpen] = useState(false);
+  const { colors } = useTheme();
 
   return (
     <ThemedView>
@@ -23,7 +24,7 @@ export function Collapsible({ children, title }: Props) {
         <IconSymbol
           name="chevron.right"
           size={18}
-          color={Colors.textSecondary}
+          color={colors.textSecondary}
           style={{
             transform: [{ rotate: isOpen ? "90deg" : "0deg" }],
           }}

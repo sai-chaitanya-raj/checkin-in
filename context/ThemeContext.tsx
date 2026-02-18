@@ -10,26 +10,13 @@ type Theme = 'light' | 'dark' | 'system';
 interface ThemeContextType {
     theme: Theme;
     setTheme: (theme: Theme) => void;
-    colors: typeof DefaultColors;
+    colors: typeof DefaultColors.light;
     isDark: boolean;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-// Dark mode colors override
-const DarkColors = {
-    ...DefaultColors,
-    primary: '#6C63FF', // Slightly lighter primary for dark mode
-    secondary: '#FF6584',
-    background: '#121212',
-    surface: '#1E1E1E',
-    textPrimary: '#FFFFFF',
-    textSecondary: '#AAAAAA',
-    border: '#333333',
-    success: '#4ADE80',
-    error: '#F87171',
-    warning: '#FBBF24',
-};
+// Dark mode colors are now handled in constants/theme.ts
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const systemScheme = useColorScheme();
@@ -47,12 +34,16 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 }
 
                 // Check backend if user logged in
+                // Check backend if user logged in
                 if (userId) {
-                    const res = await fetch(`${API_BASE_URL}/settings?userId=${userId}`);
+                    const token = await AsyncStorage.getItem("token");
+                    const res = await fetch(`${API_BASE_URL}/profile/me`, {
+                        headers: { "Authorization": `Bearer ${token}` }
+                    });
                     const json = await res.json();
-                    if (json.success && json.data.theme) {
-                        setThemeState(json.data.theme);
-                        await AsyncStorage.setItem('theme', json.data.theme);
+                    if (json.success && json.data.settings?.theme) {
+                        setThemeState(json.data.settings.theme);
+                        await AsyncStorage.setItem('theme', json.data.settings.theme);
                     }
                 }
             } catch (e) {
@@ -69,13 +60,14 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         // Sync with backend
         if (userId) {
             try {
-                await fetch(`${API_BASE_URL}/settings`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        userId,
-                        settings: { theme: newTheme }
-                    })
+                const token = await AsyncStorage.getItem("token");
+                await fetch(`${API_BASE_URL}/profile/settings/theme`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ theme: newTheme })
                 });
             } catch (e) {
                 console.error("Failed to sync theme", e);
@@ -84,7 +76,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
 
     const isDark = theme === 'system' ? systemScheme === 'dark' : theme === 'dark';
-    const colors = isDark ? DarkColors : DefaultColors;
+    const colors = isDark ? DefaultColors.dark : DefaultColors.light;
 
     return (
         <ThemeContext.Provider value={{ theme, setTheme, colors, isDark }}>

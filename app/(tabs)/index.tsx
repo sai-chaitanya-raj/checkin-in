@@ -5,7 +5,7 @@ import { StyleSheet, Text, TouchableOpacity, View, ScrollView, ActivityIndicator
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useUserId } from "@/hooks/useUserId";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { API_BASE_URL } from "@/constants/api";
 import { useTheme } from "@/context/ThemeContext";
 import { useFocusEffect } from '@react-navigation/native';
@@ -16,6 +16,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const userId = useUserId();
   const { colors, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const [loading, setLoading] = useState(true);
   const [checkingIn, setCheckingIn] = useState(false);
@@ -93,10 +94,19 @@ export default function HomeScreen() {
 
     setCheckingIn(true);
     try {
+      const token = await AsyncStorage.getItem("token");
+      if (!token) {
+        Alert.alert("Error", "Authentication token not found. Please log in again.");
+        return;
+      }
+
       const today = new Date().toISOString().split("T")[0];
       const res = await fetch(`${API_BASE_URL}/checkin`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify({ userId, date: today, mood: selectedMood }),
       });
       const json = await res.json();
@@ -122,51 +132,51 @@ export default function HomeScreen() {
 
   if (loading && !totalCheckIns) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
+      <View style={[styles.container, styles.loadingContainer]}>
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
-          <Text style={[styles.greeting, { color: colors.textSecondary }]}>Hello,</Text>
-          <Text style={[styles.title, { color: colors.textPrimary }]}>Ready to Check-in?</Text>
+          <Text style={styles.greeting}>Hello,</Text>
+          <Text style={styles.title}>Ready to Check-in?</Text>
         </View>
 
         {hasCheckedIn ? (
-          <View style={[styles.statusCard, { backgroundColor: colors.surface }]}>
+          <View style={styles.statusCard}>
             <Ionicons name="checkmark-done-circle" size={64} color={colors.success} />
-            <Text style={[styles.statusTitle, { color: colors.textPrimary }]}>You're Checked In!</Text>
-            <Text style={[styles.statusSubtitle, { color: colors.textSecondary }]}>Great job staying consistent.</Text>
-            <Text style={[styles.date, { color: colors.textSecondary, backgroundColor: colors.background }]}>{new Date().toLocaleDateString()}</Text>
+            <Text style={styles.statusTitle}>You're Checked In!</Text>
+            <Text style={styles.statusSubtitle}>Great job staying consistent.</Text>
+            <Text style={styles.date}>{new Date().toLocaleDateString()}</Text>
           </View>
         ) : (
-          <View style={[styles.moodContainer, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.moodTitle, { color: colors.textPrimary }]}>How are you feeling?</Text>
+          <View style={styles.moodContainer}>
+            <Text style={styles.moodTitle}>How are you feeling?</Text>
             <View style={styles.moodOptions}>
               <TouchableOpacity
-                style={[styles.moodOption, selectedMood === 'great' && { borderColor: colors.primary, backgroundColor: colors.background }]}
+                style={[styles.moodOption, selectedMood === 'great' && styles.moodOptionSelected]}
                 onPress={() => setSelectedMood('great')}
               >
                 <Text style={styles.moodEmoji}>😊</Text>
-                <Text style={[styles.moodText, { color: colors.textSecondary }]}>Great</Text>
+                <Text style={styles.moodText}>Great</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.moodOption, selectedMood === 'okay' && { borderColor: colors.primary, backgroundColor: colors.background }]}
+                style={[styles.moodOption, selectedMood === 'okay' && styles.moodOptionSelected]}
                 onPress={() => setSelectedMood('okay')}
               >
                 <Text style={styles.moodEmoji}>😐</Text>
-                <Text style={[styles.moodText, { color: colors.textSecondary }]}>Okay</Text>
+                <Text style={styles.moodText}>Okay</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.moodOption, selectedMood === 'bad' && { borderColor: colors.primary, backgroundColor: colors.background }]}
+                style={[styles.moodOption, selectedMood === 'bad' && styles.moodOptionSelected]}
                 onPress={() => setSelectedMood('bad')}
               >
                 <Text style={styles.moodEmoji}>😞</Text>
-                <Text style={[styles.moodText, { color: colors.textSecondary }]}>Not Great</Text>
+                <Text style={styles.moodText}>Not Great</Text>
               </TouchableOpacity>
             </View>
 
@@ -185,28 +195,33 @@ export default function HomeScreen() {
         )}
 
         <View style={styles.statsContainer}>
-          <View style={[styles.statBox, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.statNumber, { color: colors.primary }]}>{streak}</Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Days Streak</Text>
+          <View style={styles.statBox}>
+            <Text style={styles.statNumber}>{streak}</Text>
+            <Text style={styles.statLabel}>Days Streak</Text>
           </View>
-          <View style={[styles.statBox, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.statNumber, { color: colors.primary }]}>{totalCheckIns}</Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Total Check-ins</Text>
+          <View style={styles.statBox}>
+            <Text style={styles.statNumber}>{totalCheckIns}</Text>
+            <Text style={styles.statLabel}>Total Check-ins</Text>
           </View>
         </View>
 
         <TouchableOpacity onPress={logout} style={styles.logoutButton}>
           <Ionicons name="log-out-outline" size={20} color={colors.error} style={{ marginRight: 8 }} />
-          <Text style={[styles.logoutText, { color: colors.error }]}>Logout</Text>
+          <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: colors.background,
+  },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   content: {
     padding: Spacing.lg,
@@ -218,22 +233,26 @@ const styles = StyleSheet.create({
   greeting: {
     fontSize: FontSize.lg,
     fontWeight: "500",
+    color: colors.textSecondary,
   },
   title: {
     fontSize: FontSize.xxl,
     fontWeight: "800",
+    color: colors.textPrimary,
   },
   statusCard: {
     borderRadius: BorderRadius.xl,
     padding: Spacing.xl,
     alignItems: "center",
     marginBottom: Spacing.xl,
+    backgroundColor: colors.surface,
     ...Shadows.medium,
   },
   moodContainer: {
     borderRadius: BorderRadius.xl,
     padding: Spacing.xl,
     marginBottom: Spacing.xl,
+    backgroundColor: colors.surface,
     ...Shadows.medium,
   },
   moodTitle: {
@@ -241,6 +260,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginBottom: Spacing.md,
     textAlign: 'center',
+    color: colors.textPrimary,
   },
   moodOptions: {
     flexDirection: 'row',
@@ -255,6 +275,10 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     width: '30%',
   },
+  moodOptionSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.background,
+  },
   moodEmoji: {
     fontSize: 32,
     marginBottom: 4,
@@ -262,6 +286,7 @@ const styles = StyleSheet.create({
   moodText: {
     fontSize: FontSize.xs,
     fontWeight: '500',
+    color: colors.textSecondary,
   },
   checkInButton: {
     paddingVertical: Spacing.md,
@@ -277,10 +302,12 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xl,
     fontWeight: "700",
     marginTop: Spacing.md,
+    color: colors.textPrimary,
   },
   statusSubtitle: {
     fontSize: FontSize.md,
     marginTop: Spacing.xs,
+    color: colors.textSecondary,
   },
   date: {
     marginTop: Spacing.lg,
@@ -289,6 +316,8 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.xs,
     borderRadius: BorderRadius.round,
     overflow: "hidden",
+    color: colors.textSecondary,
+    backgroundColor: colors.background,
   },
   statsContainer: {
     flexDirection: "row",
@@ -301,17 +330,20 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     alignItems: "center",
     marginHorizontal: Spacing.xs,
+    backgroundColor: colors.surface,
     ...Shadows.small,
   },
   statNumber: {
     fontSize: FontSize.xxl,
     fontWeight: "800",
+    color: colors.primary,
   },
   statLabel: {
     fontSize: FontSize.xs,
     marginTop: Spacing.xs,
     textTransform: "uppercase",
     letterSpacing: 1,
+    color: colors.textSecondary,
   },
   logoutButton: {
     flexDirection: "row",
@@ -322,5 +354,6 @@ const styles = StyleSheet.create({
   logoutText: {
     fontSize: FontSize.md,
     fontWeight: "600",
+    color: colors.error,
   },
 });
