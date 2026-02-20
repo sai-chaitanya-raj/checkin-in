@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View, FlatList, ActivityIndicator, TextInput, TouchableOpacity, useWindowDimensions } from "react-native";
+import { StyleSheet, Text, View, FlatList, ActivityIndicator, TextInput, TouchableOpacity, useWindowDimensions, Alert } from "react-native";
 import { useState, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_BASE_URL } from "@/constants/api";
@@ -28,7 +28,7 @@ export default function EmotionalPresenceScreen() {
     const userId = useUserId();
     const { colors } = useTheme();
     const { height } = useWindowDimensions();
-    const thoughtBoxHeight = height * 0.39;
+    const thoughtBoxHeight = height * 0.22;
 
     const [presenceData, setPresenceData] = useState<UserPresence[]>([]);
     const [friendsThoughts, setFriendsThoughts] = useState<FriendThought[]>([]);
@@ -36,6 +36,7 @@ export default function EmotionalPresenceScreen() {
     const [thoughtInput, setThoughtInput] = useState("");
     const [loading, setLoading] = useState(true);
     const [savingThought, setSavingThought] = useState(false);
+    const [saveMessage, setSaveMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
     const fetchPresence = useCallback(async () => {
         try {
@@ -57,29 +58,77 @@ export default function EmotionalPresenceScreen() {
         }
     }, []);
 
+    const clearThought = useCallback(async () => {
+        setSavingThought(true);
+        try {
+            const token = await AsyncStorage.getItem("token");
+            await fetch(`${API_BASE_URL}/emotional-presence/thought`, {
+                method: "DELETE",
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+            });
+            setThoughtInput("");
+            setMyThought("");
+            fetchPresence();
+        } catch (error) {
+            console.error("Failed to clear thought", error);
+        } finally {
+            setSavingThought(false);
+        }
+    }, [fetchPresence]);
+
     const saveThought = useCallback(async () => {
         const trimmed = thoughtInput.trim();
-        const wordCount = trimmed ? trimmed.split(/\s+/).filter(Boolean).length : 0;
-        if (wordCount > 60) return;
+        setSaveMessage(null);
+
+        if (!trimmed) {
+            setSaveMessage({ type: "error", text: "Please enter a message first" });
+            return;
+        }
+
+        const wordCount = trimmed.split(/\s+/).filter(Boolean).length;
+        if (wordCount > 60) {
+            setSaveMessage({ type: "error", text: "Maximum 60 words allowed" });
+            return;
+        }
 
         setSavingThought(true);
         try {
             const token = await AsyncStorage.getItem("token");
+            if (!token) {
+                setSaveMessage({ type: "error", text: "Please log in again" });
+                setSavingThought(false);
+                return;
+            }
+
             const res = await fetch(`${API_BASE_URL}/emotional-presence/thought`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
-                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    Authorization: `Bearer ${token}`,
                 },
                 body: JSON.stringify({ thought: trimmed }),
             });
-            const json = await res.json();
+
+            let json;
+            try {
+                json = await res.json();
+            } catch {
+                setSaveMessage({ type: "error", text: "Invalid response from server" });
+                setSavingThought(false);
+                return;
+            }
+
             if (json.success) {
                 setMyThought(trimmed);
-                fetchPresence();
+                setSaveMessage({ type: "success", text: "Saved! Your friends can see this." });
+                await fetchPresence();
+                setTimeout(() => setSaveMessage(null), 3000);
+            } else {
+                setSaveMessage({ type: "error", text: json.message || "Failed to save" });
             }
         } catch (error) {
             console.error("Failed to save thought", error);
+            setSaveMessage({ type: "error", text: "Network error. Check your connection." });
         } finally {
             setSavingThought(false);
         }
@@ -125,8 +174,8 @@ export default function EmotionalPresenceScreen() {
     const isOverLimit = wordCount > 60;
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-            <View style={[styles.header, { paddingTop: Spacing.sm }]}>
+        <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['bottom', 'left', 'right']}>
+            <View style={styles.header}>
                 <Text style={[styles.title, { color: colors.textPrimary }]}>Emotional Presence</Text>
                 <Text style={[styles.subtitle, { color: colors.textSecondary }]}>See how your circle is feeling today.</Text>
             </View>
@@ -135,6 +184,7 @@ export default function EmotionalPresenceScreen() {
                 data={presenceData}
                 keyExtractor={(item) => item.userId}
                 contentContainerStyle={styles.listContent}
+                keyboardShouldPersistTaps="handled"
                 ListHeaderComponent={
                     <View style={styles.thoughtSection}>
                         <Text style={[styles.thoughtLabel, { color: colors.textPrimary }]}>What do you think today?</Text>
@@ -155,27 +205,50 @@ export default function EmotionalPresenceScreen() {
                             multiline
                             maxLength={400}
                         />
+                        {saveMessage && (
+                            <View style={[styles.saveMessage, { backgroundColor: saveMessage.type === "success" ? colors.success + "20" : colors.error + "20" }]}>
+                                <Text style={[styles.saveMessageText, { color: saveMessage.type === "success" ? colors.success : colors.error }]}>
+                                    {saveMessage.text}
+                                </Text>
+                            </View>
+                        )}
                         <View style={styles.thoughtFooter}>
                             <Text style={[styles.wordCount, { color: isOverLimit ? colors.error : colors.textSecondary }]}>
                                 {wordCount}/60 words
                             </Text>
-                            <TouchableOpacity
-                                style={[styles.saveThoughtBtn, { backgroundColor: colors.primary }]}
-                                onPress={saveThought}
-                                disabled={savingThought || isOverLimit}
-                            >
-                                {savingThought ? (
-                                    <ActivityIndicator size="small" color="#fff" />
-                                ) : (
-                                    <Text style={styles.saveThoughtText}>Save</Text>
+                            <View style={styles.thoughtActions}>
+                                {myThought && (
+                                    <TouchableOpacity
+                                        style={[styles.clearThoughtBtn, { borderColor: colors.error }]}
+                                        onPress={clearThought}
+                                        disabled={savingThought}
+                                    >
+                                        <Text style={[styles.clearThoughtText, { color: colors.error }]}>Clear</Text>
+                                    </TouchableOpacity>
                                 )}
-                            </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.saveThoughtBtn, { backgroundColor: colors.primary }]}
+                                    onPress={saveThought}
+                                    disabled={savingThought || isOverLimit}
+                                >
+                                    {savingThought ? (
+                                        <ActivityIndicator size="small" color="#fff" />
+                                    ) : (
+                                        <Text style={styles.saveThoughtText}>Save</Text>
+                                    )}
+                                </TouchableOpacity>
+                            </View>
                         </View>
-                        {friendsThoughts.length > 0 && (
+                        {(myThought || friendsThoughts.length > 0) && (
                             <View style={styles.friendsThoughts}>
                                 <Text style={[styles.friendsThoughtsTitle, { color: colors.textSecondary }]}>
                                     Posted today:
                                 </Text>
+                                {myThought && (
+                                    <Text style={[styles.friendThought, { color: colors.textPrimary }]}>
+                                        <Text style={{ fontWeight: "600" }}>You</Text> posted this today: {myThought}
+                                    </Text>
+                                )}
                                 {friendsThoughts.map((ft, i) => (
                                     <Text key={i} style={[styles.friendThought, { color: colors.textPrimary }]}>
                                         <Text style={{ fontWeight: "600" }}>{ft.name}</Text> posted this today: {ft.thought}
@@ -220,12 +293,14 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     header: {
-        padding: Spacing.lg,
-        paddingBottom: Spacing.sm,
+        paddingHorizontal: Spacing.lg,
+        paddingTop: Spacing.sm,
+        paddingBottom: Spacing.xs,
     },
     thoughtSection: {
         paddingHorizontal: Spacing.lg,
-        marginBottom: Spacing.lg,
+        marginBottom: Spacing.md,
+        paddingTop: 0,
     },
     thoughtLabel: {
         fontSize: FontSize.md,
@@ -239,11 +314,35 @@ const styles = StyleSheet.create({
         fontSize: FontSize.md,
         textAlignVertical: "top",
     },
+    saveMessage: {
+        padding: Spacing.sm,
+        borderRadius: BorderRadius.md,
+        marginTop: Spacing.sm,
+    },
+    saveMessageText: {
+        fontSize: FontSize.sm,
+        fontWeight: "500",
+    },
     thoughtFooter: {
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
         marginTop: Spacing.sm,
+    },
+    thoughtActions: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: Spacing.sm,
+    },
+    clearThoughtBtn: {
+        paddingHorizontal: Spacing.md,
+        paddingVertical: Spacing.sm,
+        borderRadius: BorderRadius.lg,
+        borderWidth: 1,
+    },
+    clearThoughtText: {
+        fontWeight: "600",
+        fontSize: FontSize.sm,
     },
     wordCount: {
         fontSize: FontSize.xs,
@@ -282,6 +381,7 @@ const styles = StyleSheet.create({
     },
     listContent: {
         padding: Spacing.lg,
+        paddingTop: Spacing.sm,
     },
     card: {
         flexDirection: 'row',

@@ -25,10 +25,10 @@ export default function TabLayout() {
         ),
         headerTitle: "", // "remove the names at the top" and "white part to be disseppear"
         headerStyle: {
-          backgroundColor: colors.background, // Match screen background
-          elevation: 0, // No shadow on Android
-          shadowOpacity: 0, // No shadow on iOS
-          borderBottomWidth: 0, // No border
+          backgroundColor: colors.background,
+          elevation: 0,
+          shadowOpacity: 0,
+          borderBottomWidth: 0,
         },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textSecondary,

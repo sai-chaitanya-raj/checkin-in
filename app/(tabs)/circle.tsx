@@ -240,7 +240,7 @@ export default function CircleScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
       <View style={styles.header}>
         <Text style={styles.title}>Your Circle</Text>
         <View style={styles.idContainer}>
@@ -371,7 +371,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   header: {
     padding: Spacing.lg,
-    paddingTop: Spacing.md,
+    paddingTop: Spacing.sm,
     backgroundColor: colors.surface,
     borderBottomLeftRadius: BorderRadius.xl,
     borderBottomRightRadius: BorderRadius.xl,

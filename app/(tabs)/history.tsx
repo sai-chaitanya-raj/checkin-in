@@ -86,7 +86,7 @@ export default function HistoryScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
       <View style={styles.header}>
         <Text style={styles.title}>Your History</Text>
         <Text style={styles.subtitle}>A record of your consistency.</Text>
@@ -120,8 +120,8 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   header: {
     padding: Spacing.lg,
-    paddingBottom: Spacing.sm,
     paddingTop: Spacing.sm,
+    paddingBottom: Spacing.xs,
   },
   title: {
     fontSize: FontSize.xxl,
@@ -135,6 +135,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   listContent: {
     padding: Spacing.lg,
+    paddingTop: Spacing.sm,
   },
   timelineItem: {
     flexDirection: "row",

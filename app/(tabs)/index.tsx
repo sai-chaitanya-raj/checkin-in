@@ -36,10 +36,10 @@ export default function HomeScreen() {
       const json = await res.json();
 
       if (json.success) {
-        const history: any[] = json.data; // Array of objects or strings depending on legacy
-        const today = new Date().toISOString().split("T")[0];
+        const history: any[] = json.data;
+        const d = new Date();
+        const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-        // Handle both object and string formats
         const dates = history.map(item => typeof item === 'string' ? item : item.date);
 
         setHasCheckedIn(dates.includes(today));
@@ -103,7 +103,8 @@ export default function HomeScreen() {
         return;
       }
 
-      const today = new Date().toISOString().split("T")[0];
+      const d = new Date();
+      const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
       const res = await fetch(`${API_BASE_URL}/checkin`, {
         method: "POST",
         headers: {
@@ -136,7 +137,7 @@ export default function HomeScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <Text style={styles.greeting}>Hello, {user?.name || "there"}!</Text>
@@ -218,10 +219,11 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   content: {
     padding: Spacing.lg,
+    paddingTop: Spacing.sm,
   },
   header: {
-    marginBottom: Spacing.xl,
-    marginTop: Spacing.sm,
+    marginBottom: Spacing.lg,
+    marginTop: 0,
   },
   greeting: {
     fontSize: FontSize.lg,
