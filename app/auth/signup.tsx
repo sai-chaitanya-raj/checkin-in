@@ -19,10 +19,12 @@ export default function SignupScreen() {
         email: "",
         password: "",
     });
+    const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
 
     const handleSignup = async () => {
+        setMessage(null);
         if (!formData.name || !formData.email || !formData.password || !formData.age) {
-            Alert.alert("Error", "Please fill in all fields");
+            setMessage({ type: "error", text: "Please fill in all fields" });
             return;
         }
 
@@ -34,20 +36,25 @@ export default function SignupScreen() {
                 body: JSON.stringify(formData),
             });
 
-            const json = await res.json();
+            let json;
+            try {
+                json = await res.json();
+            } catch {
+                setMessage({ type: "error", text: "Server error. Please try again." });
+                setLoading(false);
+                return;
+            }
 
             if (json.success) {
+                setMessage({ type: "success", text: "Account created! Signing you in..." });
                 await AsyncStorage.setItem("token", json.token);
                 await AsyncStorage.setItem("user", JSON.stringify(json.user));
-                // Use a slight delay to ensure async storage is set
-                setTimeout(() => {
-                    router.replace("/(tabs)");
-                }, 100);
+                setTimeout(() => router.replace("/(tabs)"), 300);
             } else {
-                Alert.alert("Signup Failed", json.message || "Something went wrong");
+                setMessage({ type: "error", text: json.message || "Something went wrong" });
             }
-        } catch (error) {
-            Alert.alert("Error", "Network error. Please try again.");
+        } catch {
+            setMessage({ type: "error", text: "Network error. Please try again." });
         } finally {
             setLoading(false);
         }
@@ -69,12 +76,21 @@ export default function SignupScreen() {
                         <Text style={styles.subtitle}>Join your circle today.</Text>
                     </View>
 
+                    {message && (
+                        <View style={[
+                            styles.messageBanner,
+                            message.type === "error" ? { backgroundColor: colors.error + "20", borderColor: colors.error } : { backgroundColor: colors.success + "20", borderColor: colors.success }
+                        ]}>
+                            <Ionicons name={message.type === "error" ? "alert-circle" : "checkmark-circle"} size={18} color={message.type === "error" ? colors.error : colors.success} />
+                            <Text style={[styles.messageText, { color: message.type === "error" ? colors.error : colors.success }]}>{message.text}</Text>
+                        </View>
+                    )}
+
                     <View style={styles.form}>
                         <View style={styles.inputGroup}>
                             <Text style={styles.label}>Full Name</Text>
                             <TextInput
                                 style={styles.input}
-                                placeholder="John Doe"
                                 value={formData.name}
                                 onChangeText={(text) => setFormData({ ...formData, name: text })}
                                 placeholderTextColor={colors.textSecondary}
@@ -85,7 +101,6 @@ export default function SignupScreen() {
                             <Text style={styles.label}>Age</Text>
                             <TextInput
                                 style={styles.input}
-                                placeholder="25"
                                 value={formData.age}
                                 onChangeText={(text) => setFormData({ ...formData, age: text })}
                                 keyboardType="numeric"
@@ -97,7 +112,6 @@ export default function SignupScreen() {
                             <Text style={styles.label}>Email</Text>
                             <TextInput
                                 style={styles.input}
-                                placeholder="john@example.com"
                                 value={formData.email}
                                 onChangeText={(text) => setFormData({ ...formData, email: text })}
                                 autoCapitalize="none"
@@ -110,7 +124,6 @@ export default function SignupScreen() {
                             <Text style={styles.label}>Password</Text>
                             <TextInput
                                 style={styles.input}
-                                placeholder="********"
                                 value={formData.password}
                                 onChangeText={(text) => setFormData({ ...formData, password: text })}
                                 secureTextEntry
@@ -162,6 +175,20 @@ const createStyles = (colors: any) => StyleSheet.create({
     subtitle: {
         fontSize: FontSize.md,
         color: colors.textSecondary,
+    },
+    messageBanner: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        padding: Spacing.md,
+        borderRadius: BorderRadius.lg,
+        borderWidth: 1,
+        marginBottom: Spacing.md,
+    },
+    messageText: {
+        flex: 1,
+        fontSize: FontSize.sm,
+        fontWeight: "500",
     },
     form: {
         gap: Spacing.lg,

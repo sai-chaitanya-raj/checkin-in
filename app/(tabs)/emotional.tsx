@@ -1,5 +1,6 @@
-import { StyleSheet, Text, View, FlatList, ActivityIndicator } from "react-native";
-import { useEffect, useState, useCallback } from "react";
+import { StyleSheet, Text, View, FlatList, ActivityIndicator, TextInput, TouchableOpacity, useWindowDimensions } from "react-native";
+import { useState, useCallback } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_BASE_URL } from "@/constants/api";
 import { useUserId } from "@/hooks/useUserId";
 import { useTheme } from "@/context/ThemeContext";
@@ -18,18 +19,36 @@ type UserPresence = {
     };
 };
 
+type FriendThought = {
+    name: string;
+    thought: string;
+};
+
 export default function EmotionalPresenceScreen() {
     const userId = useUserId();
     const { colors } = useTheme();
+    const { height } = useWindowDimensions();
+    const thoughtBoxHeight = height * 0.39;
+
     const [presenceData, setPresenceData] = useState<UserPresence[]>([]);
+    const [friendsThoughts, setFriendsThoughts] = useState<FriendThought[]>([]);
+    const [myThought, setMyThought] = useState<string>("");
+    const [thoughtInput, setThoughtInput] = useState("");
     const [loading, setLoading] = useState(true);
+    const [savingThought, setSavingThought] = useState(false);
 
     const fetchPresence = useCallback(async () => {
         try {
-            const res = await fetch(`${API_BASE_URL}/emotional-presence`);
+            const token = await AsyncStorage.getItem("token");
+            const res = await fetch(`${API_BASE_URL}/emotional-presence`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+            });
             const json = await res.json();
             if (json.success) {
-                setPresenceData(json.data);
+                setPresenceData(json.data || []);
+                setFriendsThoughts(json.friendsThoughts || []);
+                setMyThought(json.myThought || "");
+                setThoughtInput(json.myThought || "");
             }
         } catch (error) {
             console.error("Failed to fetch emotional presence", error);
@@ -37,6 +56,34 @@ export default function EmotionalPresenceScreen() {
             setLoading(false);
         }
     }, []);
+
+    const saveThought = useCallback(async () => {
+        const trimmed = thoughtInput.trim();
+        const wordCount = trimmed ? trimmed.split(/\s+/).filter(Boolean).length : 0;
+        if (wordCount > 60) return;
+
+        setSavingThought(true);
+        try {
+            const token = await AsyncStorage.getItem("token");
+            const res = await fetch(`${API_BASE_URL}/emotional-presence/thought`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify({ thought: trimmed }),
+            });
+            const json = await res.json();
+            if (json.success) {
+                setMyThought(trimmed);
+                fetchPresence();
+            }
+        } catch (error) {
+            console.error("Failed to save thought", error);
+        } finally {
+            setSavingThought(false);
+        }
+    }, [thoughtInput, fetchPresence]);
 
     useFocusEffect(
         useCallback(() => {
@@ -74,9 +121,12 @@ export default function EmotionalPresenceScreen() {
         );
     }
 
+    const wordCount = thoughtInput.trim() ? thoughtInput.trim().split(/\s+/).filter(Boolean).length : 0;
+    const isOverLimit = wordCount > 60;
+
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-            <View style={styles.header}>
+            <View style={[styles.header, { paddingTop: Spacing.sm }]}>
                 <Text style={[styles.title, { color: colors.textPrimary }]}>Emotional Presence</Text>
                 <Text style={[styles.subtitle, { color: colors.textSecondary }]}>See how your circle is feeling today.</Text>
             </View>
@@ -85,6 +135,56 @@ export default function EmotionalPresenceScreen() {
                 data={presenceData}
                 keyExtractor={(item) => item.userId}
                 contentContainerStyle={styles.listContent}
+                ListHeaderComponent={
+                    <View style={styles.thoughtSection}>
+                        <Text style={[styles.thoughtLabel, { color: colors.textPrimary }]}>What do you think today?</Text>
+                        <TextInput
+                            style={[
+                                styles.thoughtInput,
+                                {
+                                    height: thoughtBoxHeight,
+                                    backgroundColor: colors.surface,
+                                    color: colors.textPrimary,
+                                    borderColor: isOverLimit ? colors.error : colors.border,
+                                },
+                            ]}
+                            placeholder="Share your thoughts..."
+                            placeholderTextColor={colors.textSecondary}
+                            value={thoughtInput}
+                            onChangeText={setThoughtInput}
+                            multiline
+                            maxLength={400}
+                        />
+                        <View style={styles.thoughtFooter}>
+                            <Text style={[styles.wordCount, { color: isOverLimit ? colors.error : colors.textSecondary }]}>
+                                {wordCount}/60 words
+                            </Text>
+                            <TouchableOpacity
+                                style={[styles.saveThoughtBtn, { backgroundColor: colors.primary }]}
+                                onPress={saveThought}
+                                disabled={savingThought || isOverLimit}
+                            >
+                                {savingThought ? (
+                                    <ActivityIndicator size="small" color="#fff" />
+                                ) : (
+                                    <Text style={styles.saveThoughtText}>Save</Text>
+                                )}
+                            </TouchableOpacity>
+                        </View>
+                        {friendsThoughts.length > 0 && (
+                            <View style={styles.friendsThoughts}>
+                                <Text style={[styles.friendsThoughtsTitle, { color: colors.textSecondary }]}>
+                                    Posted today:
+                                </Text>
+                                {friendsThoughts.map((ft, i) => (
+                                    <Text key={i} style={[styles.friendThought, { color: colors.textPrimary }]}>
+                                        <Text style={{ fontWeight: "600" }}>{ft.name}</Text> posted this today: {ft.thought}
+                                    </Text>
+                                ))}
+                            </View>
+                        )}
+                    </View>
+                }
                 ListEmptyComponent={
                     <View style={styles.emptyContainer}>
                         <Ionicons name="heart-outline" size={64} color={colors.textSecondary} style={{ opacity: 0.5 }} />
@@ -122,6 +222,55 @@ const styles = StyleSheet.create({
     header: {
         padding: Spacing.lg,
         paddingBottom: Spacing.sm,
+    },
+    thoughtSection: {
+        paddingHorizontal: Spacing.lg,
+        marginBottom: Spacing.lg,
+    },
+    thoughtLabel: {
+        fontSize: FontSize.md,
+        fontWeight: "600",
+        marginBottom: Spacing.sm,
+    },
+    thoughtInput: {
+        borderWidth: 1,
+        borderRadius: BorderRadius.lg,
+        padding: Spacing.md,
+        fontSize: FontSize.md,
+        textAlignVertical: "top",
+    },
+    thoughtFooter: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginTop: Spacing.sm,
+    },
+    wordCount: {
+        fontSize: FontSize.xs,
+    },
+    saveThoughtBtn: {
+        paddingHorizontal: Spacing.lg,
+        paddingVertical: Spacing.sm,
+        borderRadius: BorderRadius.lg,
+    },
+    saveThoughtText: {
+        color: "#fff",
+        fontWeight: "600",
+    },
+    friendsThoughts: {
+        marginTop: Spacing.lg,
+        paddingTop: Spacing.md,
+        borderTopWidth: 1,
+        borderTopColor: "rgba(128,128,128,0.2)",
+    },
+    friendsThoughtsTitle: {
+        fontSize: FontSize.sm,
+        fontWeight: "600",
+        marginBottom: Spacing.sm,
+    },
+    friendThought: {
+        fontSize: FontSize.sm,
+        marginBottom: Spacing.sm,
     },
     title: {
         fontSize: FontSize.xxl,

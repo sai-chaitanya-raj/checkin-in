@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View, FlatList, ActivityIndicator } from "react-native";
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useFocusEffect } from "@react-navigation/native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_BASE_URL } from "@/constants/api";
 import { useUserId } from "@/hooks/useUserId";
 import { Spacing, FontSize, BorderRadius, Shadows } from "@/constants/theme";
@@ -28,8 +29,10 @@ export default function HistoryScreen() {
 
       const loadHistory = async () => {
         try {
+          const token = await AsyncStorage.getItem("token");
           const res = await fetch(
-            `${API_BASE_URL}/history?userId=${userId}`
+            `${API_BASE_URL}/history?userId=${userId}`,
+            { headers: token ? { Authorization: `Bearer ${token}` } : {} }
           );
           const json = await res.json();
 
@@ -118,6 +121,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   header: {
     padding: Spacing.lg,
     paddingBottom: Spacing.sm,
+    paddingTop: Spacing.sm,
   },
   title: {
     fontSize: FontSize.xxl,

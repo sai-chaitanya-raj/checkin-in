@@ -34,6 +34,8 @@ export default function AuthScreen() {
   const [loginLoading, setLoginLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [googleMessage, setGoogleMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
+  const [loginMessage, setLoginMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
 
   const [request, response, promptAsync] = Google.useAuthRequest({
     androidClientId: "728497750384-i2odpp36reh028ts0kqijh1bp3bmisim.apps.googleusercontent.com",
@@ -68,22 +70,24 @@ export default function AuthScreen() {
       const json = await res.json();
 
       if (json.success) {
+        setGoogleMessage({ type: "success", text: "Logged in successfully!" });
         await AsyncStorage.setItem("token", json.token);
         await AsyncStorage.setItem("user", JSON.stringify(json.user));
-        setTimeout(() => router.replace("/(tabs)"), 100);
+        setTimeout(() => router.replace("/(tabs)"), 300);
       } else {
-        Alert.alert("Login Failed", json.message || "Unknown error");
+        setGoogleMessage({ type: "error", text: json.message || "Unknown error" });
       }
     } catch {
-      Alert.alert("Network Error", "Could not connect to backend.");
+      setGoogleMessage({ type: "error", text: "Could not connect to backend. Check your network." });
     } finally {
       setLoading(false);
     }
   };
 
   const handleEmailLogin = async () => {
-    if (!email || !password) {
-      Alert.alert("Error", "Please enter email and password");
+    setLoginMessage(null);
+    if (!email.trim() || !password) {
+      setLoginMessage({ type: "error", text: "Please enter email and password" });
       return;
     }
     setLoginLoading(true);
@@ -91,19 +95,27 @@ export default function AuthScreen() {
       const res = await fetch(`${API_BASE_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: email.trim(), password }),
       });
-      const json = await res.json();
+      let json;
+      try {
+        json = await res.json();
+      } catch {
+        setLoginMessage({ type: "error", text: "Server error. Please try again." });
+        setLoginLoading(false);
+        return;
+      }
 
       if (json.success) {
+        setLoginMessage({ type: "success", text: "Logged in successfully!" });
         await AsyncStorage.setItem("token", json.token);
         await AsyncStorage.setItem("user", JSON.stringify(json.user));
-        setTimeout(() => router.replace("/(tabs)"), 100);
+        setTimeout(() => router.replace("/(tabs)"), 300);
       } else {
-        Alert.alert("Login Failed", json.message || "Invalid credentials");
+        setLoginMessage({ type: "error", text: json.message || "Login failed" });
       }
     } catch {
-      Alert.alert("Error", "Network error. Please try again.");
+      setLoginMessage({ type: "error", text: "Network error. Please check your connection." });
     } finally {
       setLoginLoading(false);
     }
@@ -131,6 +143,15 @@ export default function AuthScreen() {
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
               New here? Sign up with Google
             </Text>
+            {googleMessage && (
+              <View style={[
+                styles.messageBanner,
+                googleMessage.type === "error" ? { backgroundColor: colors.error + "20", borderColor: colors.error } : { backgroundColor: colors.success + "20", borderColor: colors.success }
+              ]}>
+                <Ionicons name={googleMessage.type === "error" ? "alert-circle" : "checkmark-circle"} size={18} color={googleMessage.type === "error" ? colors.error : colors.success} />
+                <Text style={[styles.messageText, { color: googleMessage.type === "error" ? colors.error : colors.success }]}>{googleMessage.text}</Text>
+              </View>
+            )}
             {loading ? (
               <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: Spacing.lg }} />
             ) : (
@@ -154,14 +175,23 @@ export default function AuthScreen() {
               Log in with your email and password
             </Text>
 
+            {loginMessage && (
+              <View style={[
+                styles.messageBanner,
+                loginMessage.type === "error" ? { backgroundColor: colors.error + "20", borderColor: colors.error } : { backgroundColor: colors.success + "20", borderColor: colors.success }
+              ]}>
+                <Ionicons name={loginMessage.type === "error" ? "alert-circle" : "checkmark-circle"} size={18} color={loginMessage.type === "error" ? colors.error : colors.success} />
+                <Text style={[styles.messageText, { color: loginMessage.type === "error" ? colors.error : colors.success }]}>{loginMessage.text}</Text>
+              </View>
+            )}
+
             <View style={styles.form}>
               <Text style={[styles.label, { color: colors.textPrimary }]}>Email</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.surface, color: colors.textPrimary }]}
-                placeholder="john@example.com"
                 placeholderTextColor={colors.textSecondary}
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={(t) => { setEmail(t); setLoginMessage(null); }}
                 autoCapitalize="none"
                 keyboardType="email-address"
               />
@@ -169,10 +199,9 @@ export default function AuthScreen() {
               <Text style={[styles.label, { color: colors.textPrimary }]}>Password</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.surface, color: colors.textPrimary }]}
-                placeholder="********"
                 placeholderTextColor={colors.textSecondary}
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={(t) => { setPassword(t); setLoginMessage(null); }}
                 secureTextEntry
               />
 
@@ -342,6 +371,20 @@ const createStyles = (colors: any, width: number) => {
     link: {
       fontWeight: "600",
       fontSize: FontSize.sm,
+    },
+    messageBanner: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      padding: Spacing.md,
+      borderRadius: BorderRadius.lg,
+      borderWidth: 1,
+      marginBottom: Spacing.md,
+    },
+    messageText: {
+      flex: 1,
+      fontSize: FontSize.sm,
+      fontWeight: "500",
     },
   });
 };

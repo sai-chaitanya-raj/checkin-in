@@ -1,11 +1,11 @@
 import { FontSize, Spacing, BorderRadius, Shadows } from "@/constants/theme";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter } from "expo-router";
 import { StyleSheet, Text, TouchableOpacity, View, ScrollView, ActivityIndicator, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useUserId } from "@/hooks/useUserId";
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useUser } from "@/hooks/useUser";
+import { useState, useCallback, useMemo } from "react";
 import { API_BASE_URL } from "@/constants/api";
 import { useTheme } from "@/context/ThemeContext";
 import { useFocusEffect } from '@react-navigation/native';
@@ -13,9 +13,9 @@ import { useFocusEffect } from '@react-navigation/native';
 type Mood = "great" | "okay" | "bad";
 
 export default function HomeScreen() {
-  const router = useRouter();
   const userId = useUserId();
-  const { colors, isDark } = useTheme();
+  const user = useUser();
+  const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const [loading, setLoading] = useState(true);
@@ -29,7 +29,10 @@ export default function HomeScreen() {
     if (!userId) return;
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/history?userId=${userId}`);
+      const token = await AsyncStorage.getItem("token");
+      const res = await fetch(`${API_BASE_URL}/history?userId=${userId}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       const json = await res.json();
 
       if (json.success) {
@@ -112,9 +115,8 @@ export default function HomeScreen() {
       const json = await res.json();
 
       if (json.success) {
-        Alert.alert("Checked In!", "See you tomorrow!", [{ text: "OK" }]);
         setHasCheckedIn(true);
-        fetchData(); // Refresh stats
+        await fetchData();
       } else {
         Alert.alert("Error", "Could not check in.");
       }
@@ -123,11 +125,6 @@ export default function HomeScreen() {
     } finally {
       setCheckingIn(false);
     }
-  };
-
-  const logout = async () => {
-    await AsyncStorage.clear();
-    router.replace("/auth");
   };
 
   if (loading && !totalCheckIns) {
@@ -142,7 +139,7 @@ export default function HomeScreen() {
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
-          <Text style={styles.greeting}>Hello,</Text>
+          <Text style={styles.greeting}>Hello, {user?.name || "there"}!</Text>
           <Text style={styles.title}>Ready to Check-in?</Text>
         </View>
 
@@ -205,10 +202,6 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        <TouchableOpacity onPress={logout} style={styles.logoutButton}>
-          <Ionicons name="log-out-outline" size={20} color={colors.error} style={{ marginRight: 8 }} />
-          <Text style={styles.logoutText}>Logout</Text>
-        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -228,7 +221,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   header: {
     marginBottom: Spacing.xl,
-    marginTop: Spacing.lg,
+    marginTop: Spacing.sm,
   },
   greeting: {
     fontSize: FontSize.lg,
@@ -344,16 +337,5 @@ const createStyles = (colors: any) => StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 1,
     color: colors.textSecondary,
-  },
-  logoutButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: Spacing.md,
-  },
-  logoutText: {
-    fontSize: FontSize.md,
-    fontWeight: "600",
-    color: colors.error,
   },
 });

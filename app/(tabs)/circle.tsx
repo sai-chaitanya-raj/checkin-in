@@ -33,7 +33,8 @@ type Friend = {
 type Request = {
   userId: string;
   publicId: string;
-  email: string;
+  name?: string;
+  email?: string;
 };
 
 export default function CircleScreen() {
@@ -110,6 +111,7 @@ export default function CircleScreen() {
   };
 
   const handleRespond = async (requesterId: string, action: 'accept' | 'reject') => {
+    setRequests((prev) => prev.filter((r) => r.userId !== requesterId));
     try {
       const token = await AsyncStorage.getItem("token");
       const res = await fetch(`${API_BASE_URL}/friends/respond`, {
@@ -125,9 +127,11 @@ export default function CircleScreen() {
         fetchFriendsData();
       } else {
         Alert.alert("Error", json.message || "Failed to respond");
+        fetchFriendsData();
       }
     } catch (error) {
       Alert.alert("Error", "Network error");
+      fetchFriendsData();
     }
   };
 
@@ -136,7 +140,7 @@ export default function CircleScreen() {
 
     Alert.alert(
       "Remove Friend",
-      `Are you sure you want to remove ${selectedFriend.email?.split('@')[0]}?`,
+      `Are you sure you want to remove ${selectedFriend.name || selectedFriend.email?.split('@')[0]}?`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -187,7 +191,7 @@ export default function CircleScreen() {
           <Text style={styles.avatarText}>{item.email ? item.email[0].toUpperCase() : "?"}</Text>
         </View>
         <View>
-          <Text style={styles.userName}>{item.email?.split('@')[0] || "Friend"}</Text>
+          <Text style={styles.userName}>{item.name || item.email?.split('@')[0] || "Friend"}</Text>
           <Text style={styles.userEmail}>{item.publicId}</Text>
         </View>
       </View>
@@ -202,14 +206,17 @@ export default function CircleScreen() {
     </TouchableOpacity>
   );
 
-  const renderRequest = ({ item }: { item: Request }) => (
+  const renderRequest = ({ item }: { item: Request }) => {
+    const displayName = item.name || item.email?.split('@')[0] || "User";
+    const initial = (displayName || "?")[0].toUpperCase();
+    return (
     <View style={styles.card}>
       <View style={styles.userInfo}>
         <View style={styles.avatarPlaceholder}>
-          <Text style={styles.avatarText}>{item.email[0].toUpperCase()}</Text>
+          <Text style={styles.avatarText}>{initial}</Text>
         </View>
         <View>
-          <Text style={styles.userName}>{item.email?.split('@')[0]}</Text>
+          <Text style={styles.userName}>{displayName}</Text>
           <Text style={styles.userEmail}>ID: {item.publicId}</Text>
         </View>
       </View>
@@ -222,7 +229,7 @@ export default function CircleScreen() {
         </TouchableOpacity>
       </View>
     </View>
-  );
+  );};
 
   if (loading) {
     return (
@@ -329,7 +336,7 @@ export default function CircleScreen() {
                   </Text>
                 </View>
                 <Text style={[styles.userName, { alignSelf: 'center', fontSize: 20 }]}>
-                  {selectedFriend.email?.split('@')[0]}
+                  {selectedFriend.name || selectedFriend.email?.split('@')[0]}
                 </Text>
                 <Text style={[styles.userEmail, { alignSelf: 'center', marginBottom: 20 }]}>
                   ID: {selectedFriend.publicId}
@@ -364,6 +371,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   header: {
     padding: Spacing.lg,
+    paddingTop: Spacing.md,
     backgroundColor: colors.surface,
     borderBottomLeftRadius: BorderRadius.xl,
     borderBottomRightRadius: BorderRadius.xl,
@@ -404,8 +412,8 @@ const createStyles = (colors: any) => StyleSheet.create({
   tabs: {
     flexDirection: 'row',
     paddingHorizontal: Spacing.lg,
-    marginBottom: Spacing.md,
-    marginTop: Spacing.md,
+    marginBottom: Spacing.sm,
+    marginTop: Spacing.sm,
   },
   tab: {
     paddingVertical: Spacing.sm,
