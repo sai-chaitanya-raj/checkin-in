@@ -1,50 +1,45 @@
 import { API_BASE_URL } from "@/constants/api";
 import { Spacing, FontSize, BorderRadius, Shadows } from "@/constants/theme";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { makeRedirectUri, Prompt } from "expo-auth-session";
+import { makeRedirectUri } from "expo-auth-session";
 import * as Google from "expo-auth-session/providers/google";
 import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { useEffect, useState, useMemo } from "react";
-import { StyleSheet, Text, TouchableOpacity, View, ActivityIndicator, Image } from "react-native";
+import {
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  ActivityIndicator,
+  TextInput,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  useWindowDimensions,
+  ScrollView,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/context/ThemeContext";
 
-// import { Utils } from "expo-router";
-import { Platform } from "react-native";
-
 WebBrowser.maybeCompleteAuthSession();
-
-// Direct redirect for Web (localhost)
-const webRedirectUri = makeRedirectUri({
-  scheme: "checkinin",
-  path: "auth",
-  preferLocalhost: true,
-});
-
-// Proxy redirect for Mobile (Expo Go)
-// This must match the URI in Google Cloud Console
-const mobileProxyUri = "https://auth.expo.io/@r1jtek-org/checkinin";
-
-// Select based on Platform
-const finalRedirectUri = Platform.select({
-  web: webRedirectUri,
-  default: mobileProxyUri,
-});
 
 export default function AuthScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const { width } = useWindowDimensions();
+  const styles = useMemo(() => createStyles(colors, width), [colors, width]);
+
   const [loading, setLoading] = useState(false);
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   const [request, response, promptAsync] = Google.useAuthRequest({
     androidClientId: "728497750384-i2odpp36reh028ts0kqijh1bp3bmisim.apps.googleusercontent.com",
     iosClientId: "YOUR_IOS_CLIENT_ID",
     webClientId: "728497750384-78jtkoio2td111a4i2pgfuith4hnnd1j.apps.googleusercontent.com",
-    redirectUri: makeRedirectUri({
-      scheme: "checkinin"
-    }),
+    redirectUri: makeRedirectUri({ scheme: "checkinin" }),
   });
 
   useEffect(() => {
@@ -52,187 +47,301 @@ export default function AuthScreen() {
       const { authentication } = response;
       const idToken = authentication?.idToken;
       const accessToken = authentication?.accessToken;
-
       if (idToken || accessToken) {
         handleGoogleLogin({ idToken, accessToken });
       }
     }
   }, [response]);
 
-  const handleGoogleLogin = async ({ idToken, accessToken }: { idToken?: string; accessToken?: string }) => {
+  const handleGoogleLogin = async ({
+    idToken,
+    accessToken,
+  }: { idToken?: string; accessToken?: string }) => {
     setLoading(true);
     try {
       const body = idToken ? { token: idToken } : { accessToken };
-
       const res = await fetch(`${API_BASE_URL}/auth/google`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-
       const json = await res.json();
 
       if (json.success) {
         await AsyncStorage.setItem("token", json.token);
         await AsyncStorage.setItem("user", JSON.stringify(json.user));
-
-        setTimeout(() => {
-          router.replace("/(tabs)");
-        }, 100);
+        setTimeout(() => router.replace("/(tabs)"), 100);
       } else {
-        alert("Login failed: " + (json.message || "Unknown error"));
+        Alert.alert("Login Failed", json.message || "Unknown error");
       }
-    } catch (error) {
-      alert("Network Error: Could not connect to backend.");
+    } catch {
+      Alert.alert("Network Error", "Could not connect to backend.");
     } finally {
       setLoading(false);
     }
   };
 
+  const handleEmailLogin = async () => {
+    if (!email || !password) {
+      Alert.alert("Error", "Please enter email and password");
+      return;
+    }
+    setLoginLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const json = await res.json();
+
+      if (json.success) {
+        await AsyncStorage.setItem("token", json.token);
+        await AsyncStorage.setItem("user", JSON.stringify(json.user));
+        setTimeout(() => router.replace("/(tabs)"), 100);
+      } else {
+        Alert.alert("Login Failed", json.message || "Invalid credentials");
+      }
+    } catch {
+      Alert.alert("Error", "Network error. Please try again.");
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
+  const isWide = width >= 700;
+
   return (
-    <View style={styles.container}>
-      <View style={styles.content}>
-        <View style={styles.iconContainer}>
-          <Ionicons name="location" size={64} color={colors.primary} />
-        </View>
-
-        <Text style={styles.title}>Checkin’in</Text>
-        <Text style={styles.subtitle}>Track your daily presence with your circle.</Text>
-
-        <View style={styles.buttonContainer}>
-          {loading ? (
-            <ActivityIndicator size="large" color={colors.primary} />
-          ) : (
-            <>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={[styles.container, { backgroundColor: colors.background }]}
+    >
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={[styles.splitContainer, !isWide && styles.splitColumn]}>
+          {/* LEFT: Google Sign Up / Continue with Google */}
+          <View style={[styles.panel, styles.leftPanel]}>
+            <View style={styles.iconContainer}>
+              <Ionicons name="location" size={48} color={colors.primary} />
+            </View>
+            <Text style={[styles.title, { color: colors.textPrimary }]}>Checkin'in</Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+              New here? Sign up with Google
+            </Text>
+            {loading ? (
+              <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: Spacing.lg }} />
+            ) : (
               <TouchableOpacity
                 style={[styles.googleButton, !request && styles.disabledButton]}
                 disabled={!request}
                 onPress={() => promptAsync()}
               >
-                <Ionicons name="logo-google" size={24} color="#FFF" style={{ marginRight: 12 }} />
+                <Ionicons name="logo-google" size={22} color="#FFF" style={{ marginRight: 10 }} />
                 <Text style={styles.googleText}>Continue with Google</Text>
               </TouchableOpacity>
+            )}
+          </View>
 
-              <View style={styles.divider}>
-                <View style={styles.line} />
-                <Text style={styles.orText}>OR</Text>
-                <View style={styles.line} />
+          {/* RIGHT: Login with Email & Password */}
+          <View style={[styles.panel, styles.rightPanel]}>
+            <Text style={[styles.loginTitle, { color: colors.textPrimary }]}>
+              Already a user?
+            </Text>
+            <Text style={[styles.loginSubtitle, { color: colors.textSecondary }]}>
+              Log in with your email and password
+            </Text>
+
+            <View style={styles.form}>
+              <Text style={[styles.label, { color: colors.textPrimary }]}>Email</Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.surface, color: colors.textPrimary }]}
+                placeholder="john@example.com"
+                placeholderTextColor={colors.textSecondary}
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                keyboardType="email-address"
+              />
+
+              <Text style={[styles.label, { color: colors.textPrimary }]}>Password</Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.surface, color: colors.textPrimary }]}
+                placeholder="********"
+                placeholderTextColor={colors.textSecondary}
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+              />
+
+              <TouchableOpacity
+                onPress={() => router.push("/auth/forgot-password")}
+                style={styles.forgotLink}
+              >
+                <Text style={[styles.forgotText, { color: colors.primary }]}>Forgot Password?</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.loginButton, { backgroundColor: colors.primary }]}
+                onPress={handleEmailLogin}
+                disabled={loginLoading}
+              >
+                {loginLoading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.loginButtonText}>Log In</Text>
+                )}
+              </TouchableOpacity>
+
+              <View style={styles.footer}>
+                <Text style={[styles.footerText, { color: colors.textSecondary }]}>
+                  Don't have an account?{" "}
+                </Text>
+                <TouchableOpacity onPress={() => router.push("/auth/signup")}>
+                  <Text style={[styles.link, { color: colors.primary }]}>Sign Up</Text>
+                </TouchableOpacity>
               </View>
-
-              <TouchableOpacity
-                style={styles.emailButton}
-                onPress={() => router.push("/auth/signin")}
-              >
-                <Text style={styles.emailButtonText}>Sign In with Email</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.signupButton}
-                onPress={() => router.push("/auth/signup")}
-              >
-                <Text style={styles.signupButtonText}>Create Account</Text>
-              </TouchableOpacity>
-            </>
-          )}
+            </View>
+          </View>
         </View>
-      </View>
-    </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  content: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: Spacing.xl,
-  },
-  iconContainer: {
-    marginBottom: Spacing.lg,
-    padding: Spacing.lg,
-    backgroundColor: colors.surface,
-    borderRadius: BorderRadius.round,
-    ...Shadows.medium,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: colors.textPrimary,
-    marginBottom: Spacing.xs,
-  },
-  subtitle: {
-    fontSize: FontSize.md,
-    color: colors.textSecondary,
-    textAlign: "center",
-    marginBottom: Spacing.xxl,
-  },
-  buttonContainer: {
-    width: "100%",
-    gap: Spacing.md,
-  },
-  googleButton: {
-    flexDirection: "row",
-    backgroundColor: "#DB4437",
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.xl,
-    borderRadius: BorderRadius.lg,
-    alignItems: "center",
-    justifyContent: "center",
-    width: "100%",
-    ...Shadows.small,
-  },
-  disabledButton: {
-    opacity: 0.6,
-  },
-  googleText: {
-    color: "#FFF",
-    fontSize: FontSize.md,
-    fontWeight: "600",
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: Spacing.sm,
-  },
-  line: {
-    flex: 1,
-    height: 1,
-    backgroundColor: colors.border,
-  },
-  orText: {
-    marginHorizontal: Spacing.md,
-    color: colors.textSecondary,
-    fontSize: FontSize.sm,
-  },
-  emailButton: {
-    backgroundColor: colors.primary,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.lg,
-    alignItems: "center",
-    width: "100%",
-    ...Shadows.small,
-  },
-  emailButtonText: {
-    color: "#FFF",
-    fontSize: FontSize.md,
-    fontWeight: "600",
-  },
-  signupButton: {
-    backgroundColor: "transparent",
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.lg,
-    alignItems: "center",
-    width: "100%",
-    borderWidth: 1,
-    borderColor: colors.primary,
-  },
-  signupButtonText: {
-    color: colors.primary,
-    fontSize: FontSize.md,
-    fontWeight: "600",
-  },
-});
+const createStyles = (colors: any, width: number) => {
+  const isWide = width >= 700;
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+    },
+    scrollContent: {
+      flexGrow: 1,
+      padding: Spacing.lg,
+      justifyContent: "center",
+      minHeight: "100%",
+    },
+    splitContainer: {
+      flexDirection: isWide ? "row" : "column",
+      alignItems: "stretch",
+      gap: Spacing.xl,
+      maxWidth: 900,
+      alignSelf: "center",
+      width: "100%",
+    },
+    splitColumn: {
+      flexDirection: "column",
+    },
+    panel: {
+      flex: 1,
+      minWidth: isWide ? 320 : undefined,
+      justifyContent: "center",
+      paddingVertical: Spacing.xl,
+    },
+    leftPanel: {
+      alignItems: "center",
+      borderRightWidth: isWide ? 1 : 0,
+      borderBottomWidth: isWide ? 0 : 1,
+      borderColor: colors.border || "#E2E8F0",
+      paddingRight: isWide ? Spacing.xl : 0,
+      paddingBottom: isWide ? 0 : Spacing.xl,
+    },
+    rightPanel: {
+      paddingLeft: isWide ? Spacing.xl : 0,
+      paddingTop: isWide ? 0 : Spacing.lg,
+    },
+    iconContainer: {
+      marginBottom: Spacing.md,
+      padding: Spacing.md,
+      backgroundColor: colors.surface,
+      borderRadius: BorderRadius.round,
+      ...Shadows.medium,
+    },
+    title: {
+      fontSize: 28,
+      fontWeight: "bold",
+      marginBottom: Spacing.xs,
+    },
+    subtitle: {
+      fontSize: FontSize.sm,
+      textAlign: "center",
+      marginBottom: Spacing.lg,
+    },
+    googleButton: {
+      flexDirection: "row",
+      backgroundColor: "#DB4437",
+      paddingVertical: Spacing.md,
+      paddingHorizontal: Spacing.lg,
+      borderRadius: BorderRadius.lg,
+      alignItems: "center",
+      justifyContent: "center",
+      width: "100%",
+      maxWidth: 280,
+      ...Shadows.small,
+    },
+    disabledButton: {
+      opacity: 0.6,
+    },
+    googleText: {
+      color: "#FFF",
+      fontSize: FontSize.md,
+      fontWeight: "600",
+    },
+    loginTitle: {
+      fontSize: 22,
+      fontWeight: "700",
+      marginBottom: Spacing.xs,
+    },
+    loginSubtitle: {
+      fontSize: FontSize.sm,
+      marginBottom: Spacing.lg,
+    },
+    form: {
+      gap: Spacing.md,
+    },
+    label: {
+      fontSize: FontSize.sm,
+      fontWeight: "600",
+    },
+    input: {
+      padding: Spacing.md,
+      borderRadius: BorderRadius.lg,
+      fontSize: FontSize.md,
+      ...Shadows.small,
+    },
+    forgotLink: {
+      alignSelf: "flex-end",
+    },
+    forgotText: {
+      fontSize: FontSize.sm,
+      fontWeight: "500",
+    },
+    loginButton: {
+      paddingVertical: Spacing.md,
+      borderRadius: BorderRadius.lg,
+      alignItems: "center",
+      marginTop: Spacing.sm,
+      ...Shadows.medium,
+    },
+    loginButtonText: {
+      color: "#FFF",
+      fontSize: FontSize.md,
+      fontWeight: "700",
+    },
+    footer: {
+      flexDirection: "row",
+      justifyContent: "center",
+      alignItems: "center",
+      marginTop: Spacing.md,
+    },
+    footerText: {
+      fontSize: FontSize.sm,
+    },
+    link: {
+      fontWeight: "600",
+      fontSize: FontSize.sm,
+    },
+  });
+};
