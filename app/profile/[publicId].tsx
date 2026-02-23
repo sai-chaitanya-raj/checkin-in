@@ -208,7 +208,6 @@ export default function ViewProfileScreen() {
                 method: "PUT",
                 headers: {
                     "Accept": "application/json",
-                    "Content-Type": "multipart/form-data",
                     Authorization: `Bearer ${token}`
                 },
                 body: formData
