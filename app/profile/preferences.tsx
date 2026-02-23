@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View, Switch, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
+import { StyleSheet, Text, View, Switch, TouchableOpacity, ScrollView, ActivityIndicator, Platform } from "react-native";
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useEffect, useState, useMemo } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_BASE_URL } from "@/constants/api";
@@ -26,6 +27,8 @@ export default function PreferencesScreen() {
 
     const [settings, setSettings] = useState<Settings | null>(null);
     const [loading, setLoading] = useState(true);
+    const [showTimePicker, setShowTimePicker] = useState(false);
+    const [reminderDate, setReminderDate] = useState(new Date());
 
     useEffect(() => {
         const loadSettings = async () => {
@@ -46,6 +49,12 @@ export default function PreferencesScreen() {
                         notifications: { checkIns: true, friendRequests: true, updates: false }
                     };
                     setSettings(userSettings);
+                    if (userSettings.reminderTime) {
+                        const [hours, minutes] = userSettings.reminderTime.split(':');
+                        const d = new Date();
+                        d.setHours(parseInt(hours, 10), parseInt(minutes, 10), 0, 0);
+                        setReminderDate(d);
+                    }
 
                     if (userSettings.theme && userSettings.theme !== theme) {
                         setTheme(userSettings.theme);
@@ -88,7 +97,20 @@ export default function PreferencesScreen() {
         if (!settings) return;
         const newSettings = { ...settings, reminderEnabled: enabled };
         setSettings(newSettings);
-        updateServer('reminder', { enabled });
+        updateServer('reminder', { enabled, time: settings.reminderTime });
+    };
+
+    const handleTimeChange = (event: any, selectedDate?: Date) => {
+        setShowTimePicker(Platform.OS === 'ios');
+        if (selectedDate && settings) {
+            setReminderDate(selectedDate);
+            const hours = selectedDate.getHours().toString().padStart(2, '0');
+            const minutes = selectedDate.getMinutes().toString().padStart(2, '0');
+            const newReminderTime = `${hours}:${minutes}`;
+
+            setSettings({ ...settings, reminderTime: newReminderTime });
+            updateServer('reminder', { enabled: settings.reminderEnabled, time: newReminderTime });
+        }
     };
 
     const toggleNotification = (key: keyof NonNullable<Settings['notifications']>) => {
@@ -150,6 +172,36 @@ export default function PreferencesScreen() {
                                 trackColor={{ false: colors.border, true: colors.primary }}
                             />
                         </View>
+
+                        {settings.reminderEnabled && (
+                            <>
+                                <View style={styles.divider} />
+                                <View style={styles.row}>
+                                    <View style={styles.rowLeft}>
+                                        <Ionicons name="time-outline" size={22} color={colors.textSecondary} style={[styles.icon, { marginLeft: 6 }]} />
+                                        <Text style={[styles.label, { color: colors.textSecondary }]}>Time</Text>
+                                    </View>
+                                    <TouchableOpacity
+                                        style={styles.timePickerBtn}
+                                        onPress={() => setShowTimePicker(true)}
+                                    >
+                                        <Text style={styles.timePickerText}>
+                                            {reminderDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </>
+                        )}
+
+                        {showTimePicker && (
+                            <DateTimePicker
+                                value={reminderDate}
+                                mode="time"
+                                is24Hour={true}
+                                display="default"
+                                onChange={handleTimeChange}
+                            />
+                        )}
 
                         <View style={styles.divider} />
 
@@ -256,4 +308,17 @@ const createStyles = (colors: any) => StyleSheet.create({
         backgroundColor: colors.border,
         marginLeft: 50,
     },
+    timePickerBtn: {
+        backgroundColor: colors.background,
+        paddingHorizontal: Spacing.md,
+        paddingVertical: Spacing.sm,
+        borderRadius: BorderRadius.sm,
+        borderWidth: 1,
+        borderColor: colors.border,
+    },
+    timePickerText: {
+        color: colors.primary,
+        fontWeight: '600',
+        fontSize: FontSize.md,
+    }
 });
