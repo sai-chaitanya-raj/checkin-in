@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View, ActivityIndicator, ScrollView, TouchableOpacity, Alert } from "react-native";
+import { StyleSheet, Text, View, ActivityIndicator, ScrollView, TouchableOpacity, Alert, Image, TextInput, Modal } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -6,30 +6,43 @@ import { API_BASE_URL } from "@/constants/api";
 import { useTheme } from "@/context/ThemeContext";
 import { FontSize, Spacing, BorderRadius, Shadows } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import * as ImagePicker from "expo-image-picker";
 
 type ProfileData = {
     publicId: string;
     name: string;
-    avatar: string;
+    avatar?: string;
+    bio?: string;
     friendCount: number;
     streak: number;
     totalCheckIns: number;
     weeklyMoodSummary: { great: number; okay: number; bad: number };
     recentCheckIns: Array<{ date: string; mood: string; timestamp: string }>;
     isFriend: boolean;
+    isSelf: boolean;
 };
 
 export default function ViewProfileScreen() {
     const { publicId } = useLocalSearchParams();
     const router = useRouter();
     const { colors } = useTheme();
-    const styles = useMemo(() => createStyles(colors), [colors]);
+    const insets = useSafeAreaInsets();
+    const styles = useMemo(() => createStyles(colors, insets), [colors, insets]);
 
     const [profile, setProfile] = useState<ProfileData | null>(null);
     const [loading, setLoading] = useState(true);
     const [errorStatus, setErrorStatus] = useState<{ status: number; message: string } | null>(null);
     const [processingAction, setProcessingAction] = useState(false);
+
+    // Bio Edit State
+    const [editingBio, setEditingBio] = useState(false);
+    const [bioText, setBioText] = useState("");
+    const [savingBio, setSavingBio] = useState(false);
+
+    // Photo Action Menu State
+    const [photoMenuVisible, setPhotoMenuVisible] = useState(false);
+    const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
     const fetchProfile = useCallback(async () => {
         try {
@@ -118,6 +131,128 @@ export default function ViewProfileScreen() {
         }
     };
 
+    // ----- Bio Management -----
+
+    const handleSaveBio = async () => {
+        if (!profile) return;
+        setSavingBio(true);
+        try {
+            const token = await AsyncStorage.getItem("token");
+            const res = await fetch(`${API_BASE_URL}/profile/bio`, {
+                method: "PUT",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`
+                },
+                body: JSON.stringify({ bio: bioText })
+            });
+            const json = await res.json();
+            if (json.success) {
+                setProfile({ ...profile, bio: json.data.bio });
+                setEditingBio(false);
+            } else {
+                Alert.alert("Error", json.message || "Failed to update bio");
+            }
+        } catch (error) {
+            Alert.alert("Error", "Network error updating bio");
+        } finally {
+            setSavingBio(false);
+        }
+    };
+
+    const startEditingBio = () => {
+        setBioText(profile?.bio || "");
+        setEditingBio(true);
+    };
+
+    // ----- Avatar Management -----
+
+    const pickImage = async () => {
+        setPhotoMenuVisible(false);
+        const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+        if (permissionResult.granted === false) {
+            Alert.alert("Permission Required", "Please allow access to your photos to upload an avatar.");
+            return;
+        }
+
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.8,
+        });
+
+        if (!result.canceled && result.assets && result.assets.length > 0) {
+            uploadAvatar(result.assets[0].uri);
+        }
+    };
+
+    const uploadAvatar = async (uri: string) => {
+        if (!profile) return;
+        setUploadingAvatar(true);
+        try {
+            const token = await AsyncStorage.getItem("token");
+            const filename = uri.split('/').pop() || 'avatar.jpg';
+            const match = /\.(\w+)$/.exec(filename);
+            const type = match ? `image/${match[1]}` : `image`;
+
+            const formData = new FormData();
+            formData.append('avatar', {
+                uri,
+                name: filename,
+                type,
+            } as any);
+
+            const res = await fetch(`${API_BASE_URL}/profile/avatar`, {
+                method: "PUT",
+                headers: {
+                    "Accept": "application/json",
+                    "Content-Type": "multipart/form-data",
+                    Authorization: `Bearer ${token}`
+                },
+                body: formData
+            });
+
+            const json = await res.json();
+            if (json.success) {
+                setProfile({ ...profile, avatar: json.data.avatar });
+            } else {
+                Alert.alert("Error", json.message || "Failed to upload avatar");
+            }
+        } catch (error) {
+            console.error(error);
+            Alert.alert("Error", "Network error uploading avatar");
+        } finally {
+            setUploadingAvatar(false);
+        }
+    };
+
+    const removeAvatar = async () => {
+        setPhotoMenuVisible(false);
+        if (!profile || !profile.avatar) return;
+
+        setUploadingAvatar(true);
+        try {
+            const token = await AsyncStorage.getItem("token");
+            const res = await fetch(`${API_BASE_URL}/profile/avatar`, {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            const json = await res.json();
+            if (json.success) {
+                setProfile({ ...profile, avatar: undefined });
+            } else {
+                Alert.alert("Error", json.message || "Failed to remove avatar");
+            }
+        } catch (error) {
+            console.error(error);
+            Alert.alert("Error", "Network error deleting avatar");
+        } finally {
+            setUploadingAvatar(false);
+        }
+    };
+
     if (loading) {
         return (
             <View style={[styles.container, styles.center]}>
@@ -159,36 +294,109 @@ export default function ViewProfileScreen() {
 
     return (
         <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
-            <View style={styles.headerBar}>
+            <View style={[styles.headerBar, { paddingTop: insets.top + Spacing.sm }]}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Profile</Text>
+                <Text style={styles.headerTitle}>{profile.isSelf ? "My Profile" : profile.name}</Text>
                 <View style={{ width: 24 }} />
             </View>
 
             <ScrollView contentContainerStyle={styles.content}>
                 {/* Profile Header */}
                 <View style={styles.profileHeader}>
-                    <View style={styles.avatarPlaceholder}>
-                        <Text style={styles.avatarText}>{initial}</Text>
-                    </View>
-                    <Text style={styles.nameText}>{profile.name}</Text>
-                    <Text style={styles.idText}>ID: {profile.publicId}</Text>
 
+                    {/* Avatar System */}
                     <TouchableOpacity
-                        style={[styles.actionBtn, { backgroundColor: profile.isFriend ? colors.surface : colors.primary, borderColor: profile.isFriend ? colors.border : 'transparent', borderWidth: profile.isFriend ? 1 : 0 }]}
-                        onPress={handleFriendAction}
-                        disabled={processingAction}
+                        disabled={!profile.isSelf}
+                        onPress={() => setPhotoMenuVisible(true)}
+                        style={styles.avatarContainer}
                     >
-                        {processingAction ? (
-                            <ActivityIndicator color={profile.isFriend ? colors.textPrimary : '#fff'} size="small" />
+                        {uploadingAvatar ? (
+                            <View style={[styles.avatarPlaceholder, styles.avatarLoading]}>
+                                <ActivityIndicator size="large" color="#fff" />
+                            </View>
+                        ) : profile.avatar ? (
+                            <Image source={{ uri: profile.avatar }} style={styles.avatarImage} />
                         ) : (
-                            <Text style={[styles.actionBtnText, { color: profile.isFriend ? colors.textPrimary : '#fff' }]}>
-                                {profile.isFriend ? "Friends" : "Add Friend"}
-                            </Text>
+                            <View style={styles.avatarPlaceholder}>
+                                <Text style={styles.avatarText}>{initial}</Text>
+                            </View>
+                        )}
+                        {profile.isSelf && !uploadingAvatar && (
+                            <View style={styles.cameraIconBadge}>
+                                <Ionicons name="camera" size={16} color="#fff" />
+                            </View>
                         )}
                     </TouchableOpacity>
+
+                    <Text style={styles.nameText}>{profile.name}</Text>
+                    {profile.isFriend && !profile.isSelf && (
+                        <View style={styles.friendBadge}>
+                            <Text style={styles.friendBadgeText}>Friend 🤝</Text>
+                        </View>
+                    )}
+                    <Text style={styles.idText}>ID: {profile.publicId}</Text>
+
+                    {/* Bio System */}
+                    <View style={styles.bioContainer}>
+                        {editingBio ? (
+                            <View style={styles.bioEditContainer}>
+                                <TextInput
+                                    style={styles.bioInput}
+                                    value={bioText}
+                                    onChangeText={setBioText}
+                                    maxLength={120}
+                                    multiline
+                                    placeholder="Write something about yourself..."
+                                    placeholderTextColor={colors.textSecondary}
+                                    autoFocus
+                                />
+                                <View style={styles.bioActions}>
+                                    <TouchableOpacity onPress={() => setEditingBio(false)} style={styles.bioCancelBtn}>
+                                        <Text style={styles.bioCancelText}>Cancel</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        onPress={handleSaveBio}
+                                        style={styles.bioSaveBtn}
+                                        disabled={savingBio}
+                                    >
+                                        {savingBio ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.bioSaveText}>Save</Text>}
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        ) : (
+                            <View style={styles.bioDisplayContainer}>
+                                {profile.bio ? (
+                                    <Text style={styles.bioTextContent}>{profile.bio}</Text>
+                                ) : profile.isSelf ? (
+                                    <Text style={[styles.bioTextContent, { color: colors.textSecondary }]}>Add a bio...</Text>
+                                ) : null}
+
+                                {profile.isSelf && (
+                                    <TouchableOpacity onPress={startEditingBio} style={styles.editBioBtn}>
+                                        <Ionicons name="pencil" size={16} color={colors.primary} />
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+                        )}
+                    </View>
+
+                    {!profile.isSelf && (
+                        <TouchableOpacity
+                            style={[styles.actionBtn, { backgroundColor: profile.isFriend ? colors.surface : colors.primary, borderColor: profile.isFriend ? colors.border : 'transparent', borderWidth: profile.isFriend ? 1 : 0 }]}
+                            onPress={handleFriendAction}
+                            disabled={processingAction}
+                        >
+                            {processingAction ? (
+                                <ActivityIndicator color={profile.isFriend ? colors.textPrimary : '#fff'} size="small" />
+                            ) : (
+                                <Text style={[styles.actionBtnText, { color: profile.isFriend ? colors.textPrimary : '#fff' }]}>
+                                    {profile.isFriend ? "Friends" : "Add Friend"}
+                                </Text>
+                            )}
+                        </TouchableOpacity>
+                    )}
                 </View>
 
                 {/* Stats Row */}
@@ -248,11 +456,50 @@ export default function ViewProfileScreen() {
                 </View>
 
             </ScrollView>
+
+            {/* Photo Action Modal */}
+            <Modal
+                visible={photoMenuVisible}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setPhotoMenuVisible(false)}
+            >
+                <TouchableOpacity
+                    style={styles.modalOverlay}
+                    activeOpacity={1}
+                    onPress={() => setPhotoMenuVisible(false)}
+                >
+                    <View style={styles.bottomSheet}>
+                        <View style={styles.bottomSheetHandle} />
+                        <Text style={styles.bottomSheetTitle}>Profile Photo</Text>
+
+                        <TouchableOpacity style={styles.actionRow} onPress={pickImage}>
+                            <View style={[styles.actionIconArea, { backgroundColor: colors.primary + '15' }]}>
+                                <Ionicons name="image" size={20} color={colors.primary} />
+                            </View>
+                            <Text style={[styles.actionRowText, { color: colors.textPrimary }]}>Choose from Library</Text>
+                        </TouchableOpacity>
+
+                        {profile.avatar && (
+                            <TouchableOpacity style={styles.actionRow} onPress={removeAvatar}>
+                                <View style={[styles.actionIconArea, { backgroundColor: colors.error + '15' }]}>
+                                    <Ionicons name="trash" size={20} color={colors.error} />
+                                </View>
+                                <Text style={[styles.actionRowText, { color: colors.error }]}>Remove Photo</Text>
+                            </TouchableOpacity>
+                        )}
+
+                        <TouchableOpacity style={[styles.actionRow, { borderBottomWidth: 0 }]} onPress={() => setPhotoMenuVisible(false)}>
+                            <Text style={[styles.actionRowText, { color: colors.textSecondary, textAlign: 'center', width: '100%' }]}>Cancel</Text>
+                        </TouchableOpacity>
+                    </View>
+                </TouchableOpacity>
+            </Modal>
         </SafeAreaView>
     );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const createStyles = (colors: any, insets: any) => StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: colors.background,
@@ -314,18 +561,48 @@ const createStyles = (colors: any) => StyleSheet.create({
         alignItems: 'center',
         marginBottom: Spacing.xl,
     },
+    avatarContainer: {
+        position: 'relative',
+        marginBottom: Spacing.md,
+    },
     avatarPlaceholder: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
+        width: 120,
+        height: 120,
+        borderRadius: 60,
         backgroundColor: colors.primary,
         justifyContent: "center",
         alignItems: "center",
-        marginBottom: Spacing.md,
         ...Shadows.medium,
     },
+    avatarLoading: {
+        opacity: 0.8,
+    },
+    avatarImage: {
+        width: 120,
+        height: 120,
+        borderRadius: 60,
+        ...Shadows.medium,
+    },
+    cameraIconBadge: {
+        position: 'absolute',
+        bottom: 0,
+        right: 0,
+        backgroundColor: colors.surface,
+        borderColor: colors.border,
+        borderWidth: 2,
+        borderRadius: 16,
+        width: 32,
+        height: 32,
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 3,
+        elevation: 3,
+    },
     avatarText: {
-        fontSize: 40,
+        fontSize: 48,
         fontWeight: "800",
         color: "#fff",
     },
@@ -334,11 +611,87 @@ const createStyles = (colors: any) => StyleSheet.create({
         fontWeight: '800',
         color: colors.textPrimary,
         marginBottom: 4,
+        textAlign: 'center',
+    },
+    friendBadge: {
+        backgroundColor: colors.success + '20',
+        paddingHorizontal: Spacing.sm,
+        paddingVertical: 2,
+        borderRadius: BorderRadius.sm,
+        marginBottom: 4,
+    },
+    friendBadgeText: {
+        color: colors.success,
+        fontSize: FontSize.xs,
+        fontWeight: '700',
     },
     idText: {
         fontSize: FontSize.sm,
         color: colors.textSecondary,
+        marginBottom: Spacing.md,
+    },
+    bioContainer: {
+        width: '100%',
+        paddingHorizontal: Spacing.lg,
+        alignItems: 'center',
         marginBottom: Spacing.lg,
+    },
+    bioDisplayContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: Spacing.md,
+    },
+    bioTextContent: {
+        fontSize: FontSize.md,
+        color: colors.textPrimary,
+        textAlign: 'center',
+        lineHeight: 22,
+    },
+    editBioBtn: {
+        marginLeft: Spacing.sm,
+        padding: 4,
+    },
+    bioEditContainer: {
+        width: '100%',
+        backgroundColor: colors.surface,
+        borderRadius: BorderRadius.md,
+        padding: Spacing.md,
+        borderWidth: 1,
+        borderColor: colors.border,
+    },
+    bioInput: {
+        color: colors.textPrimary,
+        fontSize: FontSize.md,
+        minHeight: 60,
+        textAlignVertical: 'top',
+        marginBottom: Spacing.md,
+    },
+    bioActions: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+    },
+    bioCancelBtn: {
+        paddingVertical: 6,
+        paddingHorizontal: 12,
+        marginRight: Spacing.sm,
+    },
+    bioCancelText: {
+        color: colors.textSecondary,
+        fontWeight: '600',
+    },
+    bioSaveBtn: {
+        backgroundColor: colors.primary,
+        paddingVertical: 6,
+        paddingHorizontal: 16,
+        borderRadius: BorderRadius.sm,
+        justifyContent: 'center',
+        alignItems: 'center',
+        minWidth: 70,
+    },
+    bioSaveText: {
+        color: '#fff',
+        fontWeight: '600',
     },
     actionBtn: {
         paddingHorizontal: Spacing.xl,
@@ -422,5 +775,51 @@ const createStyles = (colors: any) => StyleSheet.create({
     },
     recentInfo: {
         flex: 1,
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'flex-end',
+    },
+    bottomSheet: {
+        backgroundColor: colors.background,
+        borderTopLeftRadius: BorderRadius.xl,
+        borderTopRightRadius: BorderRadius.xl,
+        padding: Spacing.lg,
+        paddingBottom: insets.bottom > 0 ? insets.bottom : Spacing.xl,
+    },
+    bottomSheetHandle: {
+        width: 40,
+        height: 4,
+        backgroundColor: colors.border,
+        borderRadius: 2,
+        alignSelf: 'center',
+        marginBottom: Spacing.lg,
+    },
+    bottomSheetTitle: {
+        fontSize: FontSize.lg,
+        fontWeight: '700',
+        color: colors.textPrimary,
+        marginBottom: Spacing.lg,
+        textAlign: 'center',
+    },
+    actionRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: Spacing.md,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.border,
+    },
+    actionIconArea: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: Spacing.md,
+    },
+    actionRowText: {
+        fontSize: FontSize.md,
+        fontWeight: '500',
     },
 });

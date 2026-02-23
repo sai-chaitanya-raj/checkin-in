@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Alert,
   Clipboard,
+  Image,
 } from "react-native";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { API_BASE_URL } from "@/constants/api";
@@ -24,6 +25,9 @@ type Friend = {
   publicId: string;
   name?: string;
   email: string;
+  avatar?: string;
+  bio?: string;
+  streak?: number;
   lastCheckIn?: {
     date: string;
     mood: string;
@@ -147,12 +151,22 @@ export default function CircleScreen() {
   const renderFriend = ({ item }: { item: Friend }) => (
     <TouchableOpacity onPress={() => openFriendProfile(item)} style={styles.card}>
       <View style={styles.userInfo}>
-        <View style={styles.avatarPlaceholder}>
-          <Text style={styles.avatarText}>{item.email ? item.email[0].toUpperCase() : "?"}</Text>
-        </View>
-        <View>
+        {item.avatar ? (
+          <Image source={{ uri: item.avatar }} style={styles.avatarImage} />
+        ) : (
+          <View style={styles.avatarPlaceholder}>
+            <Text style={styles.avatarText}>{item.email ? item.email[0].toUpperCase() : "?"}</Text>
+          </View>
+        )}
+        <View style={styles.textColumn}>
           <Text style={styles.userName}>{item.name || item.email?.split('@')[0] || "Friend"}</Text>
-          <Text style={styles.userEmail}>{item.publicId}</Text>
+          <Text style={styles.userEmail}>
+            {item.publicId}
+            {item.streak && item.streak > 0 ? `  🔥 ${item.streak}` : ""}
+          </Text>
+          {item.bio ? (
+            <Text style={styles.bioText} numberOfLines={1}>{item.bio}</Text>
+          ) : null}
         </View>
       </View>
       {item.lastCheckIn ? (
@@ -420,6 +434,21 @@ const createStyles = (colors: any) => StyleSheet.create({
   userEmail: {
     fontSize: FontSize.xs,
     color: colors.textSecondary,
+    marginTop: 2,
+  },
+  bioText: {
+    fontSize: FontSize.sm,
+    color: colors.textSecondary,
+    marginTop: 4,
+  },
+  textColumn: {
+    flex: 1,
+  },
+  avatarImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: Spacing.md,
   },
   moodContainer: {
     flexDirection: 'row',

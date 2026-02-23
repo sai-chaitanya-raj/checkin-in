@@ -38,7 +38,7 @@ export default function EmotionalPresenceScreen() {
     const [savingThought, setSavingThought] = useState(false);
     const [saveMessage, setSaveMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-    const fetchPresence = useCallback(async () => {
+    const fetchPresence = useCallback(async (showLoader = true) => {
         try {
             const token = await AsyncStorage.getItem("token");
             const res = await fetch(`${API_BASE_URL}/emotional-presence`, {
@@ -52,27 +52,9 @@ export default function EmotionalPresenceScreen() {
         } catch (error) {
             console.error("Failed to fetch emotional presence", error);
         } finally {
-            setLoading(false);
+            if (showLoader) setLoading(false);
         }
     }, []);
-
-    const clearThought = useCallback(async () => {
-        setSavingThought(true);
-        try {
-            const token = await AsyncStorage.getItem("token");
-            await fetch(`${API_BASE_URL}/emotional-presence/thought`, {
-                method: "DELETE",
-                headers: token ? { Authorization: `Bearer ${token}` } : {},
-            });
-            setThoughtInput("");
-            setMyThought(null);
-            fetchPresence();
-        } catch (error) {
-            console.error("Failed to clear thought", error);
-        } finally {
-            setSavingThought(false);
-        }
-    }, [fetchPresence]);
 
     const saveThought = useCallback(async () => {
         const trimmed = thoughtInput.trim();
@@ -119,7 +101,7 @@ export default function EmotionalPresenceScreen() {
             if (json.success) {
                 setSaveMessage({ type: "success", text: "Saved! Your friends can see this." });
                 setThoughtInput("");
-                await fetchPresence();
+                await fetchPresence(true);
                 setTimeout(() => setSaveMessage(null), 3000);
             } else {
                 console.warn("Save failed:", json);
@@ -136,7 +118,11 @@ export default function EmotionalPresenceScreen() {
     useFocusEffect(
         useCallback(() => {
             setLoading(true);
-            fetchPresence();
+            fetchPresence(true);
+            const interval = setInterval(() => {
+                fetchPresence(false);
+            }, 3000); // 3 second polling
+            return () => clearInterval(interval);
         }, [fetchPresence])
     );
 
@@ -207,15 +193,7 @@ export default function EmotionalPresenceScreen() {
                                 {wordCount}/60 words
                             </Text>
                             <View style={styles.thoughtActions}>
-                                {myThought && (
-                                    <TouchableOpacity
-                                        style={[styles.clearThoughtBtn, { borderColor: colors.error }]}
-                                        onPress={clearThought}
-                                        disabled={savingThought}
-                                    >
-                                        <Text style={[styles.clearThoughtText, { color: colors.error }]}>Clear</Text>
-                                    </TouchableOpacity>
-                                )}
+
                                 <TouchableOpacity
                                     style={[styles.saveThoughtBtn, { backgroundColor: colors.primary }]}
                                     onPress={saveThought}
@@ -229,21 +207,6 @@ export default function EmotionalPresenceScreen() {
                                 </TouchableOpacity>
                             </View>
                         </View>
-                        {!!myThought && (
-                            <View style={[styles.card, { backgroundColor: colors.surface, marginTop: Spacing.lg }]}>
-                                <View style={styles.infoContainer}>
-                                    <Text style={[styles.name, { color: colors.textPrimary }]}>You</Text>
-                                    <Text style={[styles.friendThought, { color: colors.textPrimary, marginTop: 4, marginBottom: 0 }]}>
-                                        {myThought.thought}
-                                    </Text>
-                                </View>
-                                {myThought.timestamp && (
-                                    <View style={styles.timeContainer}>
-                                        <Text style={[styles.time, { color: colors.textSecondary }]}>{getTimeAgo(myThought.timestamp)}</Text>
-                                    </View>
-                                )}
-                            </View>
-                        )}
                     </View>
                 }
                 ListEmptyComponent={
@@ -254,17 +217,11 @@ export default function EmotionalPresenceScreen() {
                     </View>
                 }
                 renderItem={({ item }) => (
-                    <View style={[styles.card, { backgroundColor: colors.surface }]}>
-                        <View style={styles.infoContainer}>
-                            <Text style={[styles.name, { color: colors.textPrimary }]}>{item.name}</Text>
-                            <Text style={[styles.friendThought, { color: colors.textPrimary, marginTop: 4, marginBottom: 0 }]}>
-                                {item.thought}
-                            </Text>
-                        </View>
+                    <View style={styles.messageRow}>
+                        <Text style={[styles.messageName, { color: colors.textPrimary }]}>{item.name}: </Text>
+                        <Text style={[styles.messageText, { color: colors.textPrimary }]}>{item.thought}</Text>
                         {item.timestamp && (
-                            <View style={styles.timeContainer}>
-                                <Text style={[styles.time, { color: colors.textSecondary }]}>{getTimeAgo(item.timestamp)}</Text>
-                            </View>
+                            <Text style={[styles.messageTime, { color: colors.textSecondary }]}>  • {getTimeAgo(item.timestamp)}</Text>
                         )}
                     </View>
                 )}
@@ -365,41 +322,27 @@ const styles = StyleSheet.create({
         marginTop: Spacing.xs,
     },
     listContent: {
-        padding: Spacing.lg,
-        paddingTop: Spacing.sm,
+        paddingHorizontal: Spacing.lg,
+        paddingBottom: Spacing.xl,
     },
-    card: {
+    messageRow: {
         flexDirection: 'row',
-        alignItems: 'center',
-        padding: Spacing.md,
-        borderRadius: BorderRadius.lg,
-        marginBottom: Spacing.md,
-        ...Shadows.small,
+        flexWrap: 'wrap',
+        alignItems: 'baseline',
+        paddingVertical: 6,
+        paddingHorizontal: Spacing.sm,
     },
-    emojiContainer: {
-        marginRight: Spacing.md,
-        width: 50,
-        alignItems: 'center',
-    },
-    emoji: {
-        fontSize: 32,
-    },
-    infoContainer: {
-        flex: 1,
-    },
-    name: {
+    messageName: {
         fontSize: FontSize.md,
         fontWeight: '700',
-        marginBottom: 2,
     },
-    status: {
-        fontSize: FontSize.sm,
+    messageText: {
+        fontSize: FontSize.md,
+        flexShrink: 1,
     },
-    timeContainer: {
-        marginLeft: Spacing.sm,
-    },
-    time: {
+    messageTime: {
         fontSize: FontSize.xs,
+        marginLeft: 4,
     },
     emptyContainer: {
         alignItems: "center",
