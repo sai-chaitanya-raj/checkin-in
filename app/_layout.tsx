@@ -78,6 +78,7 @@ export default function RootLayout() {
     try {
       const authToken = await AsyncStorage.getItem("token");
       if (!authToken) return;
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 
       await fetch(`${API_BASE_URL}/profile/push-token`, {
         method: 'PUT',
@@ -85,7 +86,7 @@ export default function RootLayout() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${authToken}`
         },
-        body: JSON.stringify({ token })
+        body: JSON.stringify({ token, timezone })
       });
     } catch (error) {
       console.error("Failed to send push token", error);
