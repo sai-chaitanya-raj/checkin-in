@@ -21,7 +21,6 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [checkingIn, setCheckingIn] = useState(false);
   const [hasCheckedIn, setHasCheckedIn] = useState(false);
-  const [streak, setStreak] = useState(0);
   const [totalCheckIns, setTotalCheckIns] = useState(0);
   const [selectedMood, setSelectedMood] = useState<Mood | null>(null);
 
@@ -44,7 +43,6 @@ export default function HomeScreen() {
 
         setHasCheckedIn(dates.includes(today));
         setTotalCheckIns(dates.length);
-        setStreak(calculateStreak(dates));
       }
     } catch (error) {
       console.error("Failed to fetch data", error);
@@ -58,32 +56,6 @@ export default function HomeScreen() {
       fetchData();
     }, [fetchData])
   );
-
-  const calculateStreak = (dates: string[]) => {
-    if (!dates.length) return 0;
-
-    const sortedDates = [...new Set(dates)].sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
-    const today = new Date().toISOString().split("T")[0];
-    const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
-
-    let currentStreak = 0;
-    let expectedDate = sortedDates[0] === today ? today : yesterday;
-
-    // If the last check-in was not today or yesterday, streak is broken (0)
-    if (sortedDates[0] !== today && sortedDates[0] !== yesterday) {
-      return 0;
-    }
-
-    for (const date of sortedDates) {
-      if (date === expectedDate) {
-        currentStreak++;
-        expectedDate = new Date(new Date(date).getTime() - 86400000).toISOString().split("T")[0];
-      } else {
-        break;
-      }
-    }
-    return currentStreak;
-  };
 
   const handleCheckIn = async () => {
     if (!userId) {
@@ -193,10 +165,6 @@ export default function HomeScreen() {
         )}
 
         <View style={styles.statsContainer}>
-          <View style={styles.statBox}>
-            <Text style={styles.statNumber}>{streak}</Text>
-            <Text style={styles.statLabel}>Days Streak</Text>
-          </View>
           <View style={styles.statBox}>
             <Text style={styles.statNumber}>{totalCheckIns}</Text>
             <Text style={styles.statLabel}>Total Check-ins</Text>

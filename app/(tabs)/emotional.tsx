@@ -22,6 +22,7 @@ type UserPresence = {
 type FriendThought = {
     name: string;
     thought: string;
+    timestamp?: string;
 };
 
 export default function EmotionalPresenceScreen() {
@@ -30,9 +31,8 @@ export default function EmotionalPresenceScreen() {
     const { height } = useWindowDimensions();
     const thoughtBoxHeight = height * 0.22;
 
-    const [presenceData, setPresenceData] = useState<UserPresence[]>([]);
     const [friendsThoughts, setFriendsThoughts] = useState<FriendThought[]>([]);
-    const [myThought, setMyThought] = useState<string>("");
+    const [myThought, setMyThought] = useState<{ thought: string, timestamp?: string } | null>(null);
     const [thoughtInput, setThoughtInput] = useState("");
     const [loading, setLoading] = useState(true);
     const [savingThought, setSavingThought] = useState(false);
@@ -46,10 +46,8 @@ export default function EmotionalPresenceScreen() {
             });
             const json = await res.json();
             if (json.success) {
-                setPresenceData(json.data || []);
                 setFriendsThoughts(json.friendsThoughts || []);
-                setMyThought(json.myThought || "");
-                setThoughtInput(json.myThought || "");
+                setMyThought(json.myThought || null);
             }
         } catch (error) {
             console.error("Failed to fetch emotional presence", error);
@@ -67,7 +65,7 @@ export default function EmotionalPresenceScreen() {
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
             });
             setThoughtInput("");
-            setMyThought("");
+            setMyThought(null);
             fetchPresence();
         } catch (error) {
             console.error("Failed to clear thought", error);
@@ -119,11 +117,12 @@ export default function EmotionalPresenceScreen() {
             }
 
             if (json.success) {
-                setMyThought(trimmed);
                 setSaveMessage({ type: "success", text: "Saved! Your friends can see this." });
+                setThoughtInput("");
                 await fetchPresence();
                 setTimeout(() => setSaveMessage(null), 3000);
             } else {
+                console.warn("Save failed:", json);
                 setSaveMessage({ type: "error", text: json.message || "Failed to save" });
             }
         } catch (error) {
@@ -141,15 +140,6 @@ export default function EmotionalPresenceScreen() {
         }, [fetchPresence])
     );
 
-    const getMoodEmoji = (mood: string) => {
-        switch (mood) {
-            case 'great': return '😊';
-            case 'okay': return '😐';
-            case 'bad': return '😞';
-            default: return '❓';
-        }
-    };
-
     const getTimeAgo = (timestamp: string) => {
         const diff = Date.now() - new Date(timestamp).getTime();
         const minutes = Math.floor(diff / 60000);
@@ -162,7 +152,7 @@ export default function EmotionalPresenceScreen() {
         return 'Just now';
     };
 
-    if (loading && presenceData.length === 0) {
+    if (loading && friendsThoughts.length === 0 && !myThought) {
         return (
             <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
                 <ActivityIndicator size="large" color={colors.primary} />
@@ -181,8 +171,8 @@ export default function EmotionalPresenceScreen() {
             </View>
 
             <FlatList
-                data={presenceData}
-                keyExtractor={(item) => item.userId}
+                data={friendsThoughts}
+                keyExtractor={(item, index) => index.toString()}
                 contentContainerStyle={styles.listContent}
                 keyboardShouldPersistTaps="handled"
                 ListHeaderComponent={
@@ -239,21 +229,19 @@ export default function EmotionalPresenceScreen() {
                                 </TouchableOpacity>
                             </View>
                         </View>
-                        {(myThought || friendsThoughts.length > 0) && (
-                            <View style={styles.friendsThoughts}>
-                                <Text style={[styles.friendsThoughtsTitle, { color: colors.textSecondary }]}>
-                                    Posted today:
-                                </Text>
-                                {myThought && (
-                                    <Text style={[styles.friendThought, { color: colors.textPrimary }]}>
-                                        <Text style={{ fontWeight: "600" }}>You</Text> posted this today: {myThought}
+                        {!!myThought && (
+                            <View style={[styles.card, { backgroundColor: colors.surface, marginTop: Spacing.lg }]}>
+                                <View style={styles.infoContainer}>
+                                    <Text style={[styles.name, { color: colors.textPrimary }]}>You</Text>
+                                    <Text style={[styles.friendThought, { color: colors.textPrimary, marginTop: 4, marginBottom: 0 }]}>
+                                        {myThought.thought}
                                     </Text>
+                                </View>
+                                {myThought.timestamp && (
+                                    <View style={styles.timeContainer}>
+                                        <Text style={[styles.time, { color: colors.textSecondary }]}>{getTimeAgo(myThought.timestamp)}</Text>
+                                    </View>
                                 )}
-                                {friendsThoughts.map((ft, i) => (
-                                    <Text key={i} style={[styles.friendThought, { color: colors.textPrimary }]}>
-                                        <Text style={{ fontWeight: "600" }}>{ft.name}</Text> posted this today: {ft.thought}
-                                    </Text>
-                                ))}
                             </View>
                         )}
                     </View>
@@ -267,20 +255,17 @@ export default function EmotionalPresenceScreen() {
                 }
                 renderItem={({ item }) => (
                     <View style={[styles.card, { backgroundColor: colors.surface }]}>
-                        <View style={styles.emojiContainer}>
-                            <Text style={styles.emoji}>{getMoodEmoji(item.lastCheckIn.mood)}</Text>
-                        </View>
                         <View style={styles.infoContainer}>
-                            <Text style={[styles.name, { color: colors.textPrimary }]}>
-                                {item.userId === userId ? "You" : (item.name === "Anonymous" ? `User ${item.userId.slice(-4)}` : item.name)}
-                            </Text>
-                            <Text style={[styles.status, { color: colors.textSecondary }]}>
-                                is feeling <Text style={{ fontWeight: 'bold', color: colors.primary }}>{item.lastCheckIn.mood}</Text>
+                            <Text style={[styles.name, { color: colors.textPrimary }]}>{item.name}</Text>
+                            <Text style={[styles.friendThought, { color: colors.textPrimary, marginTop: 4, marginBottom: 0 }]}>
+                                {item.thought}
                             </Text>
                         </View>
-                        <View style={styles.timeContainer}>
-                            <Text style={[styles.time, { color: colors.textSecondary }]}>{getTimeAgo(item.lastCheckIn.timestamp)}</Text>
-                        </View>
+                        {item.timestamp && (
+                            <View style={styles.timeContainer}>
+                                <Text style={[styles.time, { color: colors.textSecondary }]}>{getTimeAgo(item.timestamp)}</Text>
+                            </View>
+                        )}
                     </View>
                 )}
             />

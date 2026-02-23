@@ -8,7 +8,6 @@ import {
   ActivityIndicator,
   Alert,
   Clipboard,
-  Modal,
 } from "react-native";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { API_BASE_URL } from "@/constants/api";
@@ -16,12 +15,14 @@ import { Spacing, FontSize, BorderRadius, Shadows } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from '@react-navigation/native';
+import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTheme } from "@/context/ThemeContext";
 
 type Friend = {
   userId: string;
   publicId: string;
+  name?: string;
   email: string;
   lastCheckIn?: {
     date: string;
@@ -39,6 +40,7 @@ type Request = {
 
 export default function CircleScreen() {
   const { colors } = useTheme();
+  const router = useRouter();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [activeTab, setActiveTab] = useState<'friends' | 'requests'>('friends');
   const [myPublicId, setMyPublicId] = useState<string>("");
@@ -48,8 +50,6 @@ export default function CircleScreen() {
   const [inputPublicId, setInputPublicId] = useState("");
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
-  const [selectedFriend, setSelectedFriend] = useState<Friend | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
 
   const fetchFriendsData = useCallback(async () => {
     try {
@@ -135,48 +135,8 @@ export default function CircleScreen() {
     }
   };
 
-  const handleRemoveFriend = async () => {
-    if (!selectedFriend) return;
-
-    Alert.alert(
-      "Remove Friend",
-      `Are you sure you want to remove ${selectedFriend.name || selectedFriend.email?.split('@')[0]}?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Remove",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const token = await AsyncStorage.getItem("token");
-              const res = await fetch(`${API_BASE_URL}/friends/remove`, {
-                method: "DELETE",
-                headers: {
-                  "Content-Type": "application/json",
-                  "Authorization": `Bearer ${token}`
-                },
-                body: JSON.stringify({ friendId: selectedFriend.userId }),
-              });
-              const json = await res.json();
-              if (json.success) {
-                setModalVisible(false);
-                setSelectedFriend(null);
-                fetchFriendsData(); // Refresh list
-              } else {
-                Alert.alert("Error", json.message || "Failed to remove friend");
-              }
-            } catch (error) {
-              Alert.alert("Error", "Network error");
-            }
-          }
-        }
-      ]
-    );
-  };
-
-  const openFriendModal = (friend: Friend) => {
-    setSelectedFriend(friend);
-    setModalVisible(true);
+  const openFriendProfile = (friend: Friend) => {
+    router.push(`/profile/${friend.publicId}` as any);
   };
 
   const copyToClipboard = () => {
@@ -185,7 +145,7 @@ export default function CircleScreen() {
   };
 
   const renderFriend = ({ item }: { item: Friend }) => (
-    <TouchableOpacity onPress={() => openFriendModal(item)} style={styles.card}>
+    <TouchableOpacity onPress={() => openFriendProfile(item)} style={styles.card}>
       <View style={styles.userInfo}>
         <View style={styles.avatarPlaceholder}>
           <Text style={styles.avatarText}>{item.email ? item.email[0].toUpperCase() : "?"}</Text>
@@ -210,26 +170,27 @@ export default function CircleScreen() {
     const displayName = item.name || item.email?.split('@')[0] || "User";
     const initial = (displayName || "?")[0].toUpperCase();
     return (
-    <View style={styles.card}>
-      <View style={styles.userInfo}>
-        <View style={styles.avatarPlaceholder}>
-          <Text style={styles.avatarText}>{initial}</Text>
+      <View style={styles.card}>
+        <View style={styles.userInfo}>
+          <View style={styles.avatarPlaceholder}>
+            <Text style={styles.avatarText}>{initial}</Text>
+          </View>
+          <View>
+            <Text style={styles.userName}>{displayName}</Text>
+            <Text style={styles.userEmail}>ID: {item.publicId}</Text>
+          </View>
         </View>
-        <View>
-          <Text style={styles.userName}>{displayName}</Text>
-          <Text style={styles.userEmail}>ID: {item.publicId}</Text>
+        <View style={styles.actionButtons}>
+          <TouchableOpacity style={[styles.actionBtn, styles.acceptBtn]} onPress={() => handleRespond(item.userId, 'accept')}>
+            <Text style={styles.actionBtnText}>Accept</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.actionBtn, styles.rejectBtn]} onPress={() => handleRespond(item.userId, 'reject')}>
+            <Text style={styles.actionBtnText}>Reject</Text>
+          </TouchableOpacity>
         </View>
       </View>
-      <View style={styles.actionButtons}>
-        <TouchableOpacity style={[styles.actionBtn, styles.acceptBtn]} onPress={() => handleRespond(item.userId, 'accept')}>
-          <Text style={styles.actionBtnText}>Accept</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.actionBtn, styles.rejectBtn]} onPress={() => handleRespond(item.userId, 'reject')}>
-          <Text style={styles.actionBtnText}>Reject</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );};
+    );
+  };
 
   if (loading) {
     return (
@@ -311,51 +272,6 @@ export default function CircleScreen() {
           />
         )}
       </View>
-
-      {/* Friend Detail Modal */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Friend Options</Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <Ionicons name="close" size={24} color={colors.textPrimary} />
-              </TouchableOpacity>
-            </View>
-
-            {selectedFriend && (
-              <View style={styles.friendProfile}>
-                <View style={[styles.avatarPlaceholder, { width: 80, height: 80, borderRadius: 40, alignSelf: 'center', marginBottom: 16 }]}>
-                  <Text style={{ fontSize: 32, fontWeight: 'bold', color: '#fff' }}>
-                    {selectedFriend.email ? selectedFriend.email[0].toUpperCase() : "?"}
-                  </Text>
-                </View>
-                <Text style={[styles.userName, { alignSelf: 'center', fontSize: 20 }]}>
-                  {selectedFriend.name || selectedFriend.email?.split('@')[0]}
-                </Text>
-                <Text style={[styles.userEmail, { alignSelf: 'center', marginBottom: 20 }]}>
-                  ID: {selectedFriend.publicId}
-                </Text>
-
-                <View style={styles.modalActions}>
-                  <TouchableOpacity style={[styles.modalBtn, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }]} onPress={() => setModalVisible(false)}>
-                    <Text style={[styles.modalBtnText, { color: colors.textPrimary }]}>View Profile</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity style={[styles.modalBtn, { backgroundColor: colors.error }]} onPress={handleRemoveFriend}>
-                    <Text style={[styles.modalBtnText, { color: '#fff' }]}>Remove Friend</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -540,7 +456,6 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   actionBtnText: {
     color: '#fff',
-    fontWeight: '600',
     fontSize: FontSize.sm,
   },
   emptyText: {
@@ -548,45 +463,5 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.textSecondary,
     fontSize: FontSize.md,
     marginTop: Spacing.xl,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: BorderRadius.xl,
-    borderTopRightRadius: BorderRadius.xl,
-    padding: Spacing.lg,
-    paddingBottom: Spacing.xl,
-    minHeight: 300,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.lg,
-  },
-  modalTitle: {
-    fontSize: FontSize.lg,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  friendProfile: {
-    flex: 1,
-  },
-  modalActions: {
-    gap: Spacing.md,
-  },
-  modalBtn: {
-    padding: Spacing.md,
-    borderRadius: BorderRadius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalBtnText: {
-    fontWeight: '600',
-    fontSize: FontSize.md,
   },
 });
