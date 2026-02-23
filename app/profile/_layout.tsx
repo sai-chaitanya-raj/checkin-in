@@ -13,6 +13,7 @@ export default function ProfileLayout() {
             }}
         >
             <Stack.Screen name="index" />
+            <Stack.Screen name="[publicId]" />
             <Stack.Screen name="edit" />
             <Stack.Screen name="privacy" />
             <Stack.Screen name="security" />

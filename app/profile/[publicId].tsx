@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View, ActivityIndicator, ScrollView, TouchableOpacity, Alert, Image, TextInput, Modal } from "react-native";
+import { StyleSheet, Text, View, ActivityIndicator, FlatList, TouchableOpacity, Alert, Image, TextInput, Modal, Platform } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -198,11 +198,20 @@ export default function ViewProfileScreen() {
             const type = match ? `image/${match[1]}` : `image`;
 
             const formData = new FormData();
-            formData.append('avatar', {
-                uri,
-                name: filename,
-                type,
-            } as any);
+
+            if (Platform.OS === 'web') {
+                // EXPO WEB: FormData requires actual Blobs or Files, not the RN object hack
+                const response = await fetch(uri);
+                const blob = await response.blob();
+                formData.append('avatar', blob, filename);
+            } else {
+                // EXPO NATIVE: Send strict object properties so the fetch network stack sets the underlying multipart boundary automatically
+                formData.append('avatar', {
+                    uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
+                    name: filename,
+                    type,
+                } as any);
+            }
 
             const res = await fetch(`${API_BASE_URL}/profile/avatar`, {
                 method: "PUT",
@@ -301,160 +310,172 @@ export default function ViewProfileScreen() {
                 <View style={{ width: 24 }} />
             </View>
 
-            <ScrollView contentContainerStyle={styles.content}>
-                {/* Profile Header */}
-                <View style={styles.profileHeader}>
+            <FlatList
+                contentContainerStyle={styles.content}
+                data={profile.recentCheckIns}
+                keyExtractor={(item, index) => index.toString()}
+                ListHeaderComponent={() => (
+                    <>
+                        {/* Profile Header */}
+                        <View style={styles.profileHeader}>
 
-                    {/* Avatar System */}
-                    <TouchableOpacity
-                        disabled={!profile.isSelf}
-                        onPress={() => setPhotoMenuVisible(true)}
-                        style={styles.avatarContainer}
-                    >
-                        {uploadingAvatar ? (
-                            <View style={[styles.avatarPlaceholder, styles.avatarLoading]}>
-                                <ActivityIndicator size="large" color="#fff" />
-                            </View>
-                        ) : profile.avatar ? (
-                            <Image source={{ uri: profile.avatar }} style={styles.avatarImage} />
-                        ) : (
-                            <View style={styles.avatarPlaceholder}>
-                                <Text style={styles.avatarText}>{initial}</Text>
-                            </View>
-                        )}
-                        {profile.isSelf && !uploadingAvatar && (
-                            <View style={styles.cameraIconBadge}>
-                                <Ionicons name="camera" size={16} color="#fff" />
-                            </View>
-                        )}
-                    </TouchableOpacity>
+                            {/* Avatar System */}
+                            <TouchableOpacity
+                                disabled={!profile.isSelf}
+                                onPress={() => setPhotoMenuVisible(true)}
+                                style={styles.avatarContainer}
+                            >
+                                {uploadingAvatar ? (
+                                    <View style={[styles.avatarPlaceholder, styles.avatarLoading]}>
+                                        <ActivityIndicator size="large" color="#fff" />
+                                    </View>
+                                ) : profile.avatar ? (
+                                    <Image source={{ uri: profile.avatar }} style={styles.avatarImage} />
+                                ) : (
+                                    <View style={styles.avatarPlaceholder}>
+                                        <Text style={styles.avatarText}>{initial}</Text>
+                                    </View>
+                                )}
+                                {profile.isSelf && !uploadingAvatar && (
+                                    <View style={styles.cameraIconBadge}>
+                                        <Ionicons name="camera" size={16} color="#fff" />
+                                    </View>
+                                )}
+                            </TouchableOpacity>
 
-                    <Text style={styles.nameText}>{profile.name}</Text>
-                    {profile.isFriend && !profile.isSelf && (
-                        <View style={styles.friendBadge}>
-                            <Text style={styles.friendBadgeText}>Friend 🤝</Text>
-                        </View>
-                    )}
-                    <Text style={styles.idText}>ID: {profile.publicId}</Text>
-
-                    {/* Bio System */}
-                    <View style={styles.bioContainer}>
-                        {editingBio ? (
-                            <View style={styles.bioEditContainer}>
-                                <TextInput
-                                    style={styles.bioInput}
-                                    value={bioText}
-                                    onChangeText={setBioText}
-                                    maxLength={120}
-                                    multiline
-                                    placeholder="Write something about yourself..."
-                                    placeholderTextColor={colors.textSecondary}
-                                    autoFocus
-                                />
-                                <View style={styles.bioActions}>
-                                    <TouchableOpacity onPress={() => setEditingBio(false)} style={styles.bioCancelBtn}>
-                                        <Text style={styles.bioCancelText}>Cancel</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                        onPress={handleSaveBio}
-                                        style={styles.bioSaveBtn}
-                                        disabled={savingBio}
-                                    >
-                                        {savingBio ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.bioSaveText}>Save</Text>}
-                                    </TouchableOpacity>
+                            <Text style={styles.nameText}>{profile.name}</Text>
+                            {profile.isFriend && !profile.isSelf && (
+                                <View style={styles.friendBadge}>
+                                    <Text style={styles.friendBadgeText}>Friend 🤝</Text>
                                 </View>
-                            </View>
-                        ) : (
-                            <View style={styles.bioDisplayContainer}>
-                                {profile.bio ? (
-                                    <Text style={styles.bioTextContent}>{profile.bio}</Text>
-                                ) : profile.isSelf ? (
-                                    <Text style={[styles.bioTextContent, { color: colors.textSecondary }]}>Add a bio...</Text>
-                                ) : null}
+                            )}
+                            <Text style={styles.idText}>ID: {profile.publicId}</Text>
 
-                                {profile.isSelf && (
-                                    <TouchableOpacity onPress={startEditingBio} style={styles.editBioBtn}>
-                                        <Ionicons name="pencil" size={16} color={colors.primary} />
-                                    </TouchableOpacity>
+                            {/* Bio System */}
+                            <View style={styles.bioContainer}>
+                                {editingBio ? (
+                                    <View style={styles.bioEditContainer}>
+                                        <TextInput
+                                            style={styles.bioInput}
+                                            value={bioText}
+                                            onChangeText={setBioText}
+                                            maxLength={120}
+                                            multiline
+                                            placeholder="Write something about yourself..."
+                                            placeholderTextColor={colors.textSecondary}
+                                            autoFocus
+                                        />
+                                        <View style={styles.bioActions}>
+                                            <TouchableOpacity onPress={() => setEditingBio(false)} style={styles.bioCancelBtn}>
+                                                <Text style={styles.bioCancelText}>Cancel</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                onPress={handleSaveBio}
+                                                style={styles.bioSaveBtn}
+                                                disabled={savingBio}
+                                            >
+                                                {savingBio ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.bioSaveText}>Save</Text>}
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+                                ) : (
+                                    <View style={styles.bioDisplayContainer}>
+                                        {profile.bio ? (
+                                            <Text style={styles.bioTextContent} numberOfLines={profile.isSelf ? undefined : 3}>{profile.bio}</Text>
+                                        ) : profile.isSelf ? (
+                                            <Text style={[styles.bioTextContent, { color: colors.textSecondary }]}>Add a bio...</Text>
+                                        ) : null}
+
+                                        {profile.isSelf && (
+                                            <TouchableOpacity onPress={startEditingBio} style={styles.editBioBtn}>
+                                                <Ionicons name="pencil" size={16} color={colors.primary} />
+                                            </TouchableOpacity>
+                                        )}
+                                    </View>
                                 )}
                             </View>
-                        )}
-                    </View>
 
-                    {!profile.isSelf && (
-                        <TouchableOpacity
-                            style={[styles.actionBtn, { backgroundColor: profile.isFriend ? colors.surface : colors.primary, borderColor: profile.isFriend ? colors.border : 'transparent', borderWidth: profile.isFriend ? 1 : 0 }]}
-                            onPress={handleFriendAction}
-                            disabled={processingAction}
-                        >
-                            {processingAction ? (
-                                <ActivityIndicator color={profile.isFriend ? colors.textPrimary : '#fff'} size="small" />
-                            ) : (
-                                <Text style={[styles.actionBtnText, { color: profile.isFriend ? colors.textPrimary : '#fff' }]}>
-                                    {profile.isFriend ? "Friends" : "Add Friend"}
-                                </Text>
+                            {!profile.isSelf && (
+                                <TouchableOpacity
+                                    style={[styles.actionBtn, { backgroundColor: profile.isFriend ? colors.surface : colors.primary, borderColor: profile.isFriend ? colors.border : 'transparent', borderWidth: profile.isFriend ? 1 : 0 }]}
+                                    onPress={handleFriendAction}
+                                    disabled={processingAction}
+                                >
+                                    {processingAction ? (
+                                        <ActivityIndicator color={profile.isFriend ? colors.textPrimary : '#fff'} size="small" />
+                                    ) : (
+                                        <Text style={[styles.actionBtnText, { color: profile.isFriend ? colors.textPrimary : '#fff' }]}>
+                                            {profile.isFriend ? "Friends" : "Add Friend"}
+                                        </Text>
+                                    )}
+                                </TouchableOpacity>
                             )}
-                        </TouchableOpacity>
-                    )}
-                </View>
-
-                {/* Stats Row */}
-                <View style={styles.statsContainer}>
-                    <View style={styles.statBox}>
-                        <Text style={styles.statEmoji}>🔥</Text>
-                        <Text style={styles.statNumber}>{profile.streak || 0}</Text>
-                        <Text style={styles.statLabel}>Streak</Text>
-                    </View>
-                    <View style={styles.statBox}>
-                        <Text style={styles.statEmoji}>🗓</Text>
-                        <Text style={styles.statNumber}>{profile.totalCheckIns || 0}</Text>
-                        <Text style={styles.statLabel}>Check-ins</Text>
-                    </View>
-                    <View style={styles.statBox}>
-                        <Text style={styles.statEmoji}>🤝</Text>
-                        <Text style={styles.statNumber}>{profile.friendCount || 0}</Text>
-                        <Text style={styles.statLabel}>Friends</Text>
-                    </View>
-                </View>
-
-                {/* Emotional Snapshot */}
-                <View style={styles.sectionCard}>
-                    <Text style={styles.sectionTitle}>7-Day Mood Summary</Text>
-                    <View style={styles.moodSummaryContainer}>
-                        <View style={styles.moodSummaryItem}>
-                            <Text style={styles.moodSummaryEmoji}>😄</Text>
-                            <Text style={styles.moodSummaryCount}>{profile.weeklyMoodSummary.great || 0}</Text>
                         </View>
-                        <View style={styles.moodSummaryItem}>
-                            <Text style={styles.moodSummaryEmoji}>😐</Text>
-                            <Text style={styles.moodSummaryCount}>{profile.weeklyMoodSummary.okay || 0}</Text>
-                        </View>
-                        <View style={styles.moodSummaryItem}>
-                            <Text style={styles.moodSummaryEmoji}>😞</Text>
-                            <Text style={styles.moodSummaryCount}>{profile.weeklyMoodSummary.bad || 0}</Text>
-                        </View>
-                    </View>
-                </View>
 
-                {/* Recent Activity */}
-                <View style={styles.sectionCard}>
-                    <Text style={styles.sectionTitle}>Recent Check-ins</Text>
-                    {profile.recentCheckIns.length > 0 ? (
-                        profile.recentCheckIns.map((ci, index) => (
-                            <View key={index} style={[styles.recentItem, index === profile.recentCheckIns.length - 1 && { borderBottomWidth: 0 }]}>
-                                <Text style={styles.recentEmoji}>{getMoodEmoji(ci.mood)}</Text>
-                                <View style={styles.recentInfo}>
-                                    <Text style={{ color: colors.textPrimary, fontWeight: '500', textTransform: 'capitalize' }}>{ci.mood}</Text>
-                                    <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: 2 }}>{new Date(ci.timestamp).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</Text>
+                        {/* Stats Row */}
+                        <View style={styles.statsContainer}>
+                            <View style={styles.statBox}>
+                                <Text style={styles.statEmoji}>🔥</Text>
+                                <Text style={styles.statNumber}>{profile.streak || 0}</Text>
+                                <Text style={styles.statLabel}>Streak</Text>
+                            </View>
+                            <View style={styles.statBox}>
+                                <Text style={styles.statEmoji}>🗓</Text>
+                                <Text style={styles.statNumber}>{profile.totalCheckIns || 0}</Text>
+                                <Text style={styles.statLabel}>Check-ins</Text>
+                            </View>
+                            <View style={styles.statBox}>
+                                <Text style={styles.statEmoji}>🤝</Text>
+                                <Text style={styles.statNumber}>{profile.friendCount || 0}</Text>
+                                <Text style={styles.statLabel}>Friends</Text>
+                            </View>
+                        </View>
+
+                        {/* Emotional Snapshot */}
+                        <View style={styles.sectionCard}>
+                            <Text style={styles.sectionTitle}>7-Day Mood Summary</Text>
+                            <View style={styles.moodSummaryContainer}>
+                                <View style={styles.moodSummaryItem}>
+                                    <Text style={styles.moodSummaryEmoji}>😄</Text>
+                                    <Text style={styles.moodSummaryCount}>{profile.weeklyMoodSummary.great || 0}</Text>
+                                </View>
+                                <View style={styles.moodSummaryItem}>
+                                    <Text style={styles.moodSummaryEmoji}>😐</Text>
+                                    <Text style={styles.moodSummaryCount}>{profile.weeklyMoodSummary.okay || 0}</Text>
+                                </View>
+                                <View style={styles.moodSummaryItem}>
+                                    <Text style={styles.moodSummaryEmoji}>😞</Text>
+                                    <Text style={styles.moodSummaryCount}>{profile.weeklyMoodSummary.bad || 0}</Text>
                                 </View>
                             </View>
-                        ))
-                    ) : (
-                        <Text style={{ color: colors.textSecondary, textAlign: 'center', paddingVertical: Spacing.md }}>No recent check-ins.</Text>
-                    )}
-                </View>
+                        </View>
 
-            </ScrollView>
+                        {/* Recent Activity Header */}
+                        <Text style={styles.sectionTitle}>Recent Check-ins</Text>
+                        {profile.recentCheckIns.length === 0 && (
+                            <View style={styles.sectionCard}>
+                                <Text style={{ color: colors.textSecondary, textAlign: 'center', paddingVertical: Spacing.md }}>No recent check-ins.</Text>
+                            </View>
+                        )}
+                        {profile.recentCheckIns.length > 0 && <View style={styles.recentListTop} />}
+                    </>
+                )}
+                renderItem={({ item, index }) => (
+                    <View style={[
+                        styles.recentItemContainer,
+                        index === profile.recentCheckIns.length - 1 && styles.recentItemBottom
+                    ]}>
+                        <View style={[styles.recentItem, index === profile.recentCheckIns.length - 1 && { borderBottomWidth: 0 }]}>
+                            <Text style={styles.recentEmoji}>{getMoodEmoji(item.mood)}</Text>
+                            <View style={styles.recentInfo}>
+                                <Text style={{ color: colors.textPrimary, fontWeight: '500', textTransform: 'capitalize' }}>{item.mood}</Text>
+                                <Text style={{ color: colors.textSecondary, fontSize: FontSize.xs, marginTop: 2 }}>{new Date(item.timestamp).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</Text>
+                            </View>
+                        </View>
+                    </View>
+                )}
+                ListFooterComponent={() => <View style={{ height: Spacing.xl }} />}
+            />
 
             {/* Photo Action Modal */}
             <Modal
@@ -774,6 +795,23 @@ const createStyles = (colors: any, insets: any) => StyleSheet.create({
     },
     recentInfo: {
         flex: 1,
+    },
+    recentListTop: {
+        backgroundColor: colors.surface,
+        borderTopLeftRadius: BorderRadius.lg,
+        borderTopRightRadius: BorderRadius.lg,
+        paddingTop: Spacing.md,
+    },
+    recentItemContainer: {
+        backgroundColor: colors.surface,
+        paddingHorizontal: Spacing.lg,
+    },
+    recentItemBottom: {
+        borderBottomLeftRadius: BorderRadius.lg,
+        borderBottomRightRadius: BorderRadius.lg,
+        paddingBottom: Spacing.md,
+        marginBottom: Spacing.lg,
+        ...Shadows.small,
     },
     modalOverlay: {
         flex: 1,
